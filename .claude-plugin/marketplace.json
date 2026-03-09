@@ -12,8 +12,8 @@
     {
       "name": "faah",
       "source": {
-        "source": "github",
-        "repo": "RKPinata/frontend-architecture-automation-hub"
+        "source": "url",
+        "url": "https://github.com/RKPinata/frontend-architecture-automation-hub.git"
       },
       "description": "FAAH: Frontend Architecture Automation Hub. Orchestrates architecture and feature planning. Investigate codebases, build project caches, and produce implementation blueprints.",
       "version": "1.0.0",
