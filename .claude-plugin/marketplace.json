@@ -1,0 +1,26 @@
+{
+  "name": "rkpinata-plugins",
+  "owner": {
+    "name": "RKPinata",
+    "email": "teukutiga@gmail.com"
+  },
+  "metadata": {
+    "description": "Claude Code plugin marketplace",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "faah",
+      "source": {
+        "source": "github",
+        "repo": "RKPinata/frontend-architecture-automation-hub"
+      },
+      "description": "FAAH: Frontend Architecture Automation Hub. Orchestrates architecture and feature planning. Investigate codebases, build project caches, and produce implementation blueprints.",
+      "version": "1.0.0",
+      "author": {
+        "name": "RKPinata",
+        "email": "teukutiga@gmail.com"
+      }
+    }
+  ]
+}
