@@ -4,7 +4,7 @@ A [Claude Code](https://code.claude.com) plugin marketplace. Add this marketplac
 
 ```bash
 # Add this marketplace (from a clone or GitHub)
-/plugin marketplace add /path/to/rkpinata-plugin
+/plugin marketplace add rkpinata/rkpinata-plugin
 # Or: /plugin marketplace add owner/rkpinata-plugin
 
 # Install a plugin
