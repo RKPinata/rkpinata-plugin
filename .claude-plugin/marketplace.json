@@ -21,6 +21,19 @@
         "name": "RKPinata",
         "email": "teukutiga@gmail.com"
       }
+    },
+    {
+      "name": "scheherazade",
+      "source": {
+        "source": "github",
+        "repo": "RKPinata/scheherazade"
+      },
+      "description": "A workshop for fiction writers: scheherazade (Socratic coach), paint-a-picture (Le Guin-voiced visualiser), index-omnium (notes organiser).",
+      "version": "0.1.0",
+      "author": {
+        "name": "RKPinata",
+        "email": "teukutiga@gmail.com"
+      }
     }
   ]
 }

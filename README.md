@@ -15,6 +15,7 @@ A [Claude Code](https://code.claude.com) plugin marketplace. Add this marketplac
 | Plugin | Description |
 |--------|-------------|
 | **faah** | FAAH: Frontend Architecture Automation Hub. Orchestrates architecture and feature planning, codebase investigation, project caches, and implementation blueprints. |
+| **scheherazade** | A workshop for fiction writers. Bundles three skills: `scheherazade` (Socratic coach), `paint-a-picture` (Le Guin-voiced scene visualiser), `index-omnium` (notes organiser). |
 
 ## Structure
 
