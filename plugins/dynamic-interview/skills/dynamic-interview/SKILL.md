@@ -1,6 +1,6 @@
 ---
 name: dynamic-interview
-description: Run a paced, goal-anchored interview to build shared understanding before acting, for understanding a system, planning a large piece of work, exploring an idea, scoping a PoC or debugging, not only for writing code. Use when the user asks to be interviewed, grilled, or walked through something, wants to think a problem through, scope or plan a big or fuzzy task, or says "ask me questions first"; when a request is too ambiguous to act on safely; and when resuming an earlier interview (an `interview.json` or interview ledger exists). Sets the goal and a depth threshold first, asks in small justified question sets, delegates fact-finding, keeps a decision ledger that survives across sessions, and splits off sub-interviews instead of drilling too deep.
+description: Paced, goal-anchored interview for large or fuzzy work where several decisions are still open, aimed at understanding a system, planning, exploring, scoping a PoC or debugging, not only at writing code. Use when the user asks to be interviewed or grilled, says "help me think this through", "scope this", "ask me questions first", or wants requirements or a spec drawn out, and when they ask to resume or continue an interview. Not for a single clarifying question.
 ---
 
 # Dynamic interview
@@ -15,29 +15,42 @@ An interview exists to reach a **shared understanding that is sufficient for a s
 
 Work through the phases below. They loop: Frame once, then repeat Map → Round → Record until the exit gate passes or the session ends.
 
+## Where the files live
+
+- **Interviews folder** (active drafts): `${user_config.interviews_dir}`. If that still reads as a `${...}` placeholder, use `~/.claude/interviews`. It is outside every project and survives a plugin uninstall.
+- **Archive folder** (finished interviews): `${CLAUDE_PLUGIN_DATA}/archive`. Claude Code deletes it when the plugin is uninstalled.
+- Each interview is `<interviews folder>/<project-key>/<slug>/`, holding `interview.json` and `ledger.md`. How to compute `<project-key>`, what to do in a cloud session, and the promote, archive and delete procedures are in `references/storage.md`. Read it before the first write of an interview, and whenever the user asks to promote, archive, delete or relink one.
+- These paths are filled in here only. In Bash and in `references/`, write them out literally.
+
+The interview **never touches the user's repository** until the outcome is promoted there (see Exit gate). Don't edit `.gitignore`, don't commit interview files, and don't create files in the project while drafting.
+
 ## Phase 0: Resume or start
 
-Look for an existing interview before starting one: a path the user names, then an `interview.json` under `~/.claude/interviews/<project-key>/` (see Continuity), `.interviews/`, `docs/interviews/` or the project's planning-docs folder. If several match, list them and ask which one. If one exists, **resume** it:
+If the user names an interview, or asks to resume or continue one, look in `<interviews folder>/<project-key>/`. If several match, list them and ask which one. To resume:
 
 1. Read `interview.json` and `ledger.md`.
 2. Give a recap of at most 5 lines: goal, outcome, what's decided, what's open, and where the last session stopped (its `next`).
 3. Show the map (see Presentation).
 4. Ask one question: "Is the goal still right, and do we continue with `<next>`?" Goals drift between sessions, so confirm before you build on them.
-5. Increment `session` and add a session entry to the ledger.
+5. Increment `session`, add a session entry to the ledger, and write both files.
 
-## Phase 1: Frame (goal, outcome, threshold)
+When starting fresh, glance at the project's other interviews. If any are finished and more than a week old, mention it in one line ("2 finished interviews could be archived; `/interview-cleanup`"), then move on.
 
-Don't ask a single content question before these are agreed. Propose them yourself from what the user said, and let them correct you rather than fill in a blank form.
+## Phase 1: Frame
 
-- **Goal**: what are we trying to achieve, in one sentence.
-- **Mode**: `understand` · `plan` · `explore` · `poc` · `debug` · `build`. The mode decides what "done" means and what the next step after the interview is. Only `build` (and `poc` once scoped) ends in writing code.
-- **Outcome**: the concrete artifact or state the interview produces. For example, "a phased plan in `docs/plans/x.md`", "a written explanation of how billing retries work", "3 ranked options with trade-offs", "a reproducible failing case plus 2 hypotheses to test", or "an agreed spec, then implementation".
-- **Depth threshold**: the level of detail you stop at. State it in the terms of the subject, e.g. "service boundaries and data ownership, not function signatures" or "enough to pick a library, not to configure it". This is the yardstick for "too deep".
-- **Sufficiency test**: one sentence of the form "We have enough when ___", e.g. "...when every phase has an owner-less, testable exit criterion" or "...when I can explain the retry path back and you agree."
-- **Continuity**: where the ledger lives, in the user's personal folder, untracked in the repo or shared in the repo (see Continuity). Ask this here, once, unless a remembered choice exists.
-- **Saving work**: how commits are handled for this goal (see Commit policy). **Always ask, once per goal**, even if an earlier goal on the same project had a policy. Combine it with the Continuity question so Frame stays short.
+Don't ask a single content question before the frame is agreed. Propose it yourself from what the user said, in **one message**, and let them correct it:
 
-Write `interview.json` and `ledger.md` as soon as Frame is agreed.
+> **Goal:** Decide how failed charges are retried after the queue migration.
+> **Mode:** plan, producing a phased plan document.
+> **Stop at:** service boundaries and data ownership, not function signatures. **Enough when:** every phase has a testable exit criterion.
+> Drafts go to `~/.claude/interviews/github.com-ana-shop/billing-retries/`, outside the repo. OK?
+
+- **Mode** is one of `understand` · `plan` · `explore` · `poc` · `debug` · `build`. It decides what "done" means. Only `build`, and `poc` once scoped, ends in writing code.
+- **Stop at** is the depth threshold, stated in the subject's own terms. It is the yardstick for "too deep".
+- **Enough when** is the sufficiency test.
+- **Storage** is a statement, not a question: name the draft folder. Ask only in a cloud or ephemeral session (see `references/storage.md`), where the drafts would not survive.
+
+Where the outcome finally goes, and how commits are handled, are decided at the exit gate, not here. Once the user confirms the frame, write `interview.json` and `ledger.md`.
 
 ## Phase 2: Map the threads
 
@@ -47,7 +60,7 @@ Break the subject into **threads**, the areas the outcome depends on, typically 
 - the **decisions it blocks** in the outcome, which is why it matters;
 - whether it needs **the user's judgment** or only **facts** (see Delegation).
 
-Order threads by what unblocks the most, so the decisions that others depend on come first. The thread list is the progress measure: progress = `enough` ÷ (all threads − `parked` − `spun-off`). Show the map after framing and whenever it changes shape.
+Order threads by what unblocks the most, so the decisions that others depend on come first. Progress = `enough` ÷ (all threads − `parked` − `spun-off`). Show the map after framing and whenever it changes shape.
 
 ## Phase 3: Rounds (question sets)
 
@@ -60,14 +73,22 @@ For each question:
 
 - Ask for one decision or fact. Split compound questions.
 - Offer your **recommended answer** and the reason for it when you have one, so the user can confirm instead of compose. Use the `AskUserQuestion` tool when the options are discrete, with the recommended option first.
-- Mark why it's asked if that isn't obvious from the set's framing.
 
 Pacing rules:
 
 - Never send more than one set per turn, and never more than 4 questions in a set.
-- If an answer opens something new, don't chase it inside the same set. Note it as a candidate thread and decide where it goes at the end of the round.
-- Every 3 rounds, or when the user seems lost, give a **checkpoint**: show the map, list what was decided since the last checkpoint, and ask "Still aligned? Anything I've got wrong?" Shared understanding is the product, so check it, don't assume it.
-- If the user's answers get short, or they say "just decide" or "whatever you think", that's a signal. Propose the remaining decisions in bulk as defaults for them to veto, or check whether the threshold is set too deep.
+- If an answer opens something new, don't chase it inside the same set. Note it as a candidate thread and place it at the end of the round.
+- Every 3 rounds, or when the user seems lost, give a **checkpoint**: show the map, list what was decided since the last checkpoint, and ask "Still aligned? Anything I've got wrong?"
+- If the user's answers get short, or they say "just decide", propose the remaining decisions in bulk as defaults for them to veto, or check whether the threshold is set too deep.
+
+## Record every round
+
+After **every** round, in one step:
+
+- Append what changed to `ledger.md`: decisions `D<n>`, facts `F<n>` with trust levels, open questions `Q<n>`, to-verify entries. Formats are in `references/state-and-ledger.md`.
+- Rewrite `interview.json` whole with `Write`: thread statuses, `round` + 1, and **`next`**, the exact next step, written so a cold session could start it.
+
+A round that changed nothing still gets a new `next`. The progress display counts decisions and open questions from `ledger.md` itself, so there are no counts to keep by hand. Write immediately when the user states a decision unprompted.
 
 ## Depth control
 
@@ -92,12 +113,12 @@ Before asking the user something, decide whose answer it is:
 
 Record every fact with a **trust level**: `verified` (checked against a primary source), `stated` (the user said so), `delegated` (a subagent reported it and it isn't checked), or `assumed` (nobody confirmed it).
 
-For each `delegated` or `assumed` fact, decide **verify now vs. later** with a one-line judgment:
+For each `delegated` or `assumed` fact, decide **verify now vs. later**:
 
 | | cheap to verify | expensive to verify |
 |---|---|---|
 | **costly if wrong** | verify now | verify now, or make it the first task of the outcome |
-| **cheap if wrong** | verify now (it's free) | record it in the ledger's *To verify* list with the trigger that makes it matter |
+| **cheap if wrong** | verify now (it's free) | add it to *To verify* with the trigger that makes it matter |
 
 Note the risk of leaving it unknown ("if wrong, phase 2 is redone") in the ledger, so a later session can see why it was deferred.
 
@@ -111,65 +132,14 @@ Specialized skills may cover part of the interview, such as a brainstorming, deb
 
 Never silently run two interview-style skills at once.
 
-## Continuity
-
-The interview's state lives in a directory, `<root>/<slug>/`:
-
-- `interview.json`: machine-readable progress (goal, mode, threads, counts, next step). The optional progress pane reads this file. Its schema is in `references/state-and-ledger.md`.
-- `ledger.md`: the human-readable record (decisions, facts with trust levels, open questions, to-verify list, parked and spun-off threads, session log). Its format is in the same reference.
-
-**Where**: many projects have conventions about what may live in the repo, and some users can't add files there at all. So the interview **never touches the repository unless the user picks a repo location**. Before asking, look for the project's own conventions: `CLAUDE.md`, `CONTRIBUTING`, and an existing folder for planning docs (`docs/adr/`, `docs/rfcs/`, `docs/design/`). Then ask once during Frame and recommend one of these:
-
-| Option | Path | Touches the repo? | Suits |
-|---|---|---|---|
-| **Personal** (default) | `~/.claude/interviews/<project-key>/<slug>/` | No | Users who can't or don't want to add files to the project, and anything personal. Recommend it whenever you're unsure. |
-| **Local, untracked** | `.interviews/<slug>/`, excluded through `.git/info/exclude` | Only an untracked folder. No tracked file changes. | Keeping notes next to the code without anyone else seeing them. |
-| **Shared** | the project's planning-docs folder if it has one, else `docs/interviews/<slug>/` | Yes. The files are committed when the user commits. | Plans and understanding the team should review. Only when project conventions allow it. |
-
-- `<project-key>` is the project's absolute path with every `/` (and `\`, `:`) replaced by `-`, e.g. `/home/ana/shop` → `-home-ana-shop`. It's stable and needs no repo change.
-- **Never edit `.gitignore`** or any other tracked file to hide the interview. To exclude, append `.interviews/` to `.git/info/exclude`, which is local and never committed. If that file isn't writable or the project isn't a git repo, use Personal instead.
-- **Commits** follow the commit policy agreed for this goal (below), never your own judgment.
-- The **outcome** artifact (the plan, the explanation) follows the same rule: it goes in the interview folder unless the user names a path in the repo.
-- If the user wants the choice remembered, record it in the Personal folder as `~/.claude/interviews/<project-key>/location` (one line: `personal`, `local` or `shared:<path>`). Read that file before asking in later interviews on the same project. It lives outside the repo, so remembering is never disruptive.
-- Personal storage stays on this machine. In a cloud or throwaway environment it disappears with the environment, so say so when you recommend it there.
-- The interview can be moved later by copying its folder; tell the user the new path so the next session finds it.
-
-**When to write**:
-- after Frame;
-- after every round that produced a decision, a fact or a status change (update `interview.json` and append to `ledger.md` in the same step);
-- immediately when the user states a decision unprompted;
-- before the session ends or the context is likely to compact: set `next` to the exact next round, so the next session starts cold without re-asking.
-
-Don't write a ledger entry for a round that changed nothing.
-
-### Commit policy
-
-Ask **once per goal**, during Frame, so you know how to save work for the rest of the interview and the work that follows it. Don't re-ask on every save, and don't assume a policy from an earlier goal. Ask again only when the goal itself changes (on resume, or when the user redefines it). A spun-off sub-interview inherits its parent's policy; say so in one line, and the user can override it.
-
-Offer these, recommending one based on the storage location and the project's conventions:
-
-| Policy | What you do |
-|---|---|
-| `none` | Never commit or push. The user saves work their own way. Mention uncommitted changes at session end. |
-| `local` | Commit at save points. Never push. |
-| `push` | Commit at save points and push. |
-
-With `local` or `push`, also agree:
-- **Branch**: the current one, or a new one (suggest `interview/<slug>`, or the project's branch naming convention). Never commit to the default branch without explicit agreement.
-- **What's covered**: interview files (only when stored in the Shared location; Personal and local-untracked files are never committed), the outcome artifact, and code written in `build` or `poc` mode.
-
-**Save points**: after Frame, at each checkpoint, when the exit gate passes, and at session end. One commit per save point, with a message in the project's convention (e.g. Conventional Commits if the history uses them) that names the interview and round: `docs(interview): billing-retries s2r5, decide retry cap`.
-
-Record the policy in `interview.json` (`commits`) and the ledger header. Before every commit, check the policy still matches what you're about to do. A project rule (`CLAUDE.md`, `CONTRIBUTING`) or an explicit instruction from the user always wins; if one conflicts with the agreed policy, say so and ask.
-
 ## Presentation
 
-Shared understanding depends on how state is shown. Pick the lightest form that carries it, using `references/presentation.md` for templates:
+Pick the lightest form that carries the state, using `references/presentation.md` for templates:
 
 - **Terminal (default)**: an ASCII thread map with progress bars. Show it after Frame, at checkpoints and on resume.
-- **Docs**: Mermaid diagrams inside the ledger or the outcome doc for flows, dependencies between threads, or system shape.
-- **Interactive**: when the subject has many interacting parts, such as large dependency graphs, option matrices or timelines, offer an HTML artifact. Offer it; don't build it unasked.
-- **Live progress**: if the `dynamic-interview` mod is loaded, it draws the map from `interview.json` in a status band above the prompt and a pane (`/interview-map`). The user hides or shows it with `/interview-progress`. Keep `interview.json` current and the display follows. Without the mod, the ASCII map is the progress view.
+- **Docs**: Mermaid diagrams inside the ledger or the outcome for flows, dependencies between threads, or system shape.
+- **Interactive**: for many interacting parts (large dependency graphs, option matrices, timelines), offer an HTML artifact. Offer it; don't build it unasked.
+- **Live progress**: in the terminal and the desktop app, the plugin's mod draws a band above the prompt and an `/interview-map` pane from `interview.json`. The user hides or shows it with `/interview-progress`; don't re-open it after they hide it. It doesn't draw everywhere (VS Code, cloud sessions, `claude -p`), so the ASCII map at checkpoints is still the baseline.
 
 ## Exit gate
 
@@ -180,14 +150,19 @@ Before declaring the interview done, check the following and show the result:
 - [ ] No `assumed` fact that's costly if wrong is left unverified without a plan.
 - [ ] The user has confirmed the summary of decisions. Read it back, briefly.
 
-Then produce **the outcome that Frame named**, not a different one. If the mode is `understand`, `plan`, `explore` or `debug`, don't start implementing. Offer the next step and wait. If the mode is `build` or `poc`, ask before switching to implementation. Set `status` to `done` (or `paused` if the session ends early) in `interview.json`.
+Then produce **the outcome that Frame named**, not a different one, and **promote** it: ask where it goes (a path in the repo, a doc tool, or stay in the interview folder). If it goes to the repo, agree the commit policy (`none` · `local` · `push`, plus branch) now, once for this goal. The outcome always carries a short *Decisions* and *To verify* section from the ledger, so the reasoning survives once the draft is archived. Follow the promote procedure in `references/storage.md`, which records each step so an interrupted promotion can be finished rather than repeated.
+
+If the mode is `understand`, `plan`, `explore` or `debug`, don't start implementing. Offer the next step and wait. If the mode is `build` or `poc`, ask before switching to implementation; code follows the same commit policy. Set `status` to `done` in `interview.json`.
+
+If the session ends before the gate, set `status` to `paused` and make sure `next` is current.
 
 ## Anti-patterns
 
-- Asking content questions before goal, outcome and threshold are agreed.
+- Asking content questions before the frame is confirmed, or turning the frame into a questionnaire.
 - Asking the user for something you could read from the code or docs.
 - More than 4 questions in a set, or questions without a stated reason.
 - Treating "I could start coding now" as the exit gate.
 - Chasing a fascinating sub-topic instead of spinning it off.
-- Keeping decisions only in conversation context.
+- Keeping decisions only in conversation context, or skipping the per-round write.
 - Re-asking something the ledger already answers.
+- Writing into the user's repository before the outcome is promoted there.

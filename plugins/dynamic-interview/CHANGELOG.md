@@ -7,10 +7,12 @@ This plugin follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- `dynamic-interview` skill: frame (goal, mode, outcome, depth threshold, sufficiency test), thread map, paced question sets, depth control with spin-off sub-interviews, delegation with trust levels and verify-now/later, deference to specialized skills, exit gate per mode.
-- Multi-session continuity through `interview.json` and `ledger.md`, with resume protocol.
-- Repo-safe storage: personal folder outside the repo by default, local-untracked (`.git/info/exclude`) or shared in the project's docs; never edits `.gitignore`.
-- Commit policy (`none` · `local` · `push`, plus branch) asked once per goal and recorded in `interview.json`; the pane shows it.
+- `dynamic-interview` skill: a one-message frame (goal, mode, depth threshold, sufficiency test), thread map, paced question sets, depth control with spin-off sub-interviews, delegation with trust levels and verify-now/later, deference to specialized skills, exit gate per mode.
+- Per-round record: `ledger.md` entries and a whole-file `interview.json` with `next` after every round; resume protocol for multi-session interviews.
+- Storage outside the repo: drafts in `~/.claude/interviews/<project-key>/` (the `interviews_dir` option), keyed by git remote; finished interviews archived to the plugin data folder, which uninstall removes. Cloud sessions are steered to a pushed branch or a doc tool.
+- Promotion at the exit gate to a repo path, a doc tool or the interview folder, recorded step by step (`promoted.state`); commit policy (`none` · `local` · `push`, plus branch) agreed then, once per goal.
+- Progress mod: band above the prompt and `/interview-map` pane, refreshed on Claude's writes, keeping the last good state if the file breaks; counts derived from `ledger.md`.
+- `/interview-progress [show|hide]` and the band's Hide button; the choice persists across sessions.
+- `/interview-cleanup` pane: Stale / All lists, Open, Archive, Keep 30d and Delete, keyboard and click; file moves and deletes are handed to Claude through the prompt.
+- Writes inside the interviews folder skip the permission prompt (`auto_allow_writes`, on by default; deny rules still apply).
 - Presentation templates: ASCII thread map, Mermaid, interactive artifact guidance.
-- Progress mod: a band above the prompt and an `/interview-map` pane (toggles open/closed), driven by `interview.json`.
-- `/interview-progress [show|hide]` and the band's Hide button show or hide all progress; the choice persists across sessions.

@@ -22,28 +22,37 @@ Paced, goal-anchored interviews that build shared understanding before acting. T
 
 ## Components
 
-- `skills/dynamic-interview` is the interview method. `references/` holds the `interview.json` / `ledger.md` formats and the presentation templates (ASCII, Mermaid, interactive).
-- `hooks/register.tsx` is a **mod** (a function-hooks module) for live progress:
+- `skills/dynamic-interview` is the interview method. `references/` holds the storage, promotion and cleanup procedures, the `interview.json` / `ledger.md` formats, and the presentation templates (ASCII, Mermaid, interactive).
+- `hooks/register.tsx` is a **mod** (a function-hooks module; on by default from Claude Code 2.1.287, drawn in the terminal and the desktop app):
   - a band above the prompt shows `◆ slug · mode · s2 r5 · ████░░░░ 1/3 threads · 7 decisions · 3 open` and the next step, with **Map** and **Hide** buttons;
-  - `/interview-map` opens or closes a pane with the full thread map, counts and next step;
-  - `/interview-progress [show|hide]` shows or hides all progress (band and pane); with no argument it toggles. Hiding is remembered across sessions until you show it again;
-  - it refreshes whenever Claude reads or writes an `interview.json`, and a new session in the same folder restores the last interview.
+  - `/interview-map` opens or closes a pane with the full thread map, the promotion state and the next step;
+  - `/interview-progress [show|hide]` shows or hides the band and pane; with no argument it toggles. The choice is remembered across sessions;
+  - `/interview-cleanup` opens a keyboard- and click-driven list (Stale / All) of finished, idle or orphaned interviews, with **Open**, **Archive**, **Keep 30d** and **Delete**. Open, Archive and Delete put the request in your prompt for Claude to carry out in view; the mod itself never moves or deletes files;
+  - writes inside the interviews folder are allowed without a permission prompt each round (your deny rules still apply; turn it off with the `auto_allow_writes` option).
 
-  The mod only reads files. If your Claude Code build doesn't load mods, the skill still works and prints the ASCII map instead.
+  The band and counts refresh when Claude writes `interview.json` or `ledger.md`. Where mods don't draw (VS Code, cloud sessions, `claude -p`), the skill prints an ASCII map instead.
 
 ## Where interviews are stored
 
-The interview **doesn't touch your repository unless you choose a repo location**: no `.gitignore` edits, and commits only as agreed for the goal. Claude checks the project's conventions, asks once while framing, and can remember your choice outside the repo.
+Nothing goes into your repository while you're being interviewed.
 
-| Option | Path | Repo impact |
-|---|---|---|
-| **Personal** (default) | `~/.claude/interviews/<project-key>/<slug>/` | none |
-| **Local, untracked** | `.interviews/<slug>/`, excluded through `.git/info/exclude` | an untracked folder only |
-| **Shared** | the project's planning-docs folder, or `docs/interviews/<slug>/` | files you commit yourself |
+```text
+~/.claude/interviews/                          active drafts (change it in /config: "Interviews folder")
+└── <project-key>/<slug>/                      interview.json + ledger.md; survives plugin uninstall
+~/.claude/plugins/data/dynamic-interview-…/
+└── archive/<project-key>/<slug>/              finished interviews; deleted on plugin uninstall
+```
 
-**Commits** are agreed **once per goal**: `none` (you save work yourself), `local` (commit at save points) or `push` (commit and push), plus the branch. Save points are after framing, at checkpoints, at the exit gate and at session end. The policy covers the outcome and any code written, and the interview files only when they're in the Shared location. The pane shows the policy as "Saving: …".
+- **The project key** is the git remote, e.g. `github.com-ana-shop`, so it's the same on every machine and worktree. Without a remote, it's the folder name plus a short hash of its path.
+- **At the end, the outcome is promoted** to where you choose: a repo path, a doc tool, or kept in the interview folder. It carries a short Decisions and To-verify section. Commits are agreed then, once per goal, and only when the target is the repo: `none`, `local` or `push`, plus the branch.
+- **Finished interviews are archived** into the plugin's data folder. Uninstalling the plugin removes them; active drafts survive.
+- **In a cloud or throwaway session,** Claude says the drafts won't survive and offers a pushed branch or a doc tool instead.
 
-`<project-key>` is the project's absolute path with `/` replaced by `-`. Personal storage stays on the machine, so in a cloud or throwaway environment pick Shared if the interview must survive.
+**Removing everything.** `claude plugin uninstall dynamic-interview` deletes the archive without asking; add `--keep-data` to keep it. The active drafts stay until you delete them:
+
+```bash
+rm -rf ~/.claude/interviews
+```
 
 ## Develop
 
@@ -51,3 +60,5 @@ The interview **doesn't touch your repository unless you choose a repo location*
 claude plugin validate plugins/dynamic-interview --strict
 claude plugin test plugins/dynamic-interview
 ```
+
+Running from the source folder (`claude --plugin-dir plugins/dynamic-interview`) uses a separate data folder (`…/data/dynamic-interview-inline/`), so test archives don't mix with real ones.

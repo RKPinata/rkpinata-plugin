@@ -14,5 +14,19 @@
     "discovery",
     "mod"
   ],
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "interviews_dir": {
+      "type": "directory",
+      "title": "Interviews folder",
+      "description": "Where active interview drafts (interview.json, ledger.md) are kept. Outside your projects by default; survives plugin uninstall.",
+      "default": "~/.claude/interviews"
+    },
+    "auto_allow_writes": {
+      "type": "boolean",
+      "title": "Allow interview writes without asking",
+      "description": "Let Claude write interview files inside the interviews folder without a permission prompt each round. Your deny rules still apply.",
+      "default": true
+    }
+  }
 }

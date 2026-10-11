@@ -53,4 +53,6 @@ When the map has more than about 10 threads, the dependencies cross, or the user
 
 ## Live pane (mod)
 
-If the `dynamic-interview` mod is loaded, a band above the prompt shows the slug, round, progress and next step, and `/interview-map` opens or closes a pane drawn from `interview.json`. The user can hide or show all of it with `/interview-progress` (or the band's Hide button); respect that and don't re-open the pane after they hide it. It refreshes whenever Claude reads or writes an `interview.json`, so keep that file current. The ASCII map is still worth printing at checkpoints, because the pane may be closed or unsupported.
+In the terminal and the desktop app, the plugin's mod draws a one-line band above the prompt (slug, round, progress, next step) and an `/interview-map` pane from `interview.json`, refreshed whenever Claude writes it or the ledger. The user hides or shows both with `/interview-progress`, or the band's Hide button; respect that and don't re-open the pane after they hide it. `/interview-cleanup` opens a keyboard- and click-driven list of finished, idle or orphaned interviews. Its Open, Archive and Delete buttons put a request in the user's prompt, which you then carry out following `storage.md`.
+
+The mod doesn't draw in VS Code, cloud sessions or `claude -p`, so the ASCII map at checkpoints remains the baseline.
