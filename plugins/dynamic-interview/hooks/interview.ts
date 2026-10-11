@@ -2,24 +2,60 @@ import type { CommitPolicy, Interview, LedgerCounts, Promotion, Thread, ThreadSt
 
 const STATUSES: ThreadStatus[] = ['open', 'partial', 'enough', 'parked', 'spun-off']
 const FILE = 'interview.json'
-const DAY = 24 * 60 * 60 * 1000
+const LEDGER = 'ledger.md'
+export const DAY = 24 * 60 * 60 * 1000
 
-export const isInterviewFile = (path: unknown): path is string =>
-  typeof path === 'string' && (path === FILE || path.endsWith(`/${FILE}`) || path.endsWith(`\\${FILE}`))
+/** A path with `/` separators, so Windows and POSIX paths compare alike. */
+export const toSlash = (path: string): string => path.replace(/\\/g, '/')
 
-/** The folder holding an interview.json. */
-export const folderOf = (path: string): string => path.slice(0, path.length - FILE.length - 1)
+/** An absolute path: `/…` or a Windows drive `C:/…`. */
+export const isAbsolute = (path: string): boolean => /^(\/|[A-Za-z]:\/)/.test(toSlash(path))
+
+const endsWithFile = (path: unknown, name: string): path is string =>
+  typeof path === 'string' && (path === name || toSlash(path).endsWith(`/${name}`))
+
+export const isInterviewFile = (path: unknown): path is string => endsWithFile(path, FILE)
+export const isLedgerFile = (path: unknown): path is string => endsWithFile(path, LEDGER)
+
+/** The folder holding an interview.json or a ledger.md, with `/` separators. */
+export const folderOf = (path: string): string => {
+  const slashed = toSlash(path)
+
+  return slashed.slice(0, slashed.lastIndexOf('/'))
+}
 
 /** `~` and `~/x` under `home`; anything else as given, without a trailing separator. */
 export const expandHome = (path: string, home: string | undefined): string => {
-  const expanded = home !== undefined && (path === '~' || path.startsWith('~/')) ? home + path.slice(1) : path
+  const expanded = home !== undefined && /^~([\\/]|$)/.test(path) ? home + path.slice(1) : path
 
   return expanded.length > 1 ? expanded.replace(/[\\/]+$/, '') : expanded
 }
 
-/** Whether `path` lies inside `root` (both already resolved). */
-export const isInside = (path: string, root: string): boolean =>
-  path.startsWith(root.endsWith('/') ? root : `${root}/`)
+/** Drive letters compare without case, as Windows does. */
+const comparable = (path: string): string => {
+  const slashed = toSlash(path)
+
+  return /^[A-Za-z]:\//.test(slashed) ? slashed.toLowerCase() : slashed
+}
+
+/** Whether `path` lies inside `root` (both already resolved), on either separator. */
+export const isInside = (path: string, root: string): boolean => {
+  const base = comparable(root)
+
+  return comparable(path).startsWith(base.endsWith('/') ? base : `${base}/`)
+}
+
+/** Whether two resolved paths are the same place. */
+export const isSamePath = (a: string, b: string): boolean =>
+  comparable(a).replace(/\/+$/, '') === comparable(b).replace(/\/+$/, '')
+
+/**
+ * Whether a resolved interviews folder is too broad to auto-allow writes in:
+ * a filesystem root, the home folder, ~/.claude, or a folder above one of them.
+ */
+export const isTooBroad = (root: string, guarded: readonly string[]): boolean =>
+  /^(\/|[A-Za-z]:\/?)$/.test(toSlash(root)) ||
+  guarded.some(path => isSamePath(path, root) || isInside(path, root))
 
 const text = (value: unknown, fallback = ''): string =>
   typeof value === 'string' ? value : fallback

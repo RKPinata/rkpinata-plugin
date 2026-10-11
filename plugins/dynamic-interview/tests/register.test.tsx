@@ -1,12 +1,23 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { countLedger, parseInterview, progress, staleReasons } from '../hooks/interview'
+import {
+  countLedger,
+  folderOf,
+  isInside,
+  isInterviewFile,
+  isLedgerFile,
+  isTooBroad,
+  parseInterview,
+  progress,
+  staleReasons,
+} from '../hooks/interview'
 
 const HOME = '/home/ana'
 const ROOT = `${HOME}/.claude/interviews`
 const PROJECT = '/work/shop'
-const DIR = `${ROOT}/github.com-ana-shop/billing-retries`
+const KEY = 'shop-6e3ccdf9'
+const DIR = `${ROOT}/${KEY}/billing-retries`
 const PATH = `${DIR}/interview.json`
 const DAY = 24 * 60 * 60 * 1000
 const NOW = Date.parse('2026-10-11T12:00:00Z')
@@ -77,20 +88,22 @@ const CLEANUP = { component: 'Pane', requestId: 'interview-cleanup', props: pane
 
 type Disk = Record<string, { text: string; mtimeMs?: number }>
 
+type Options = {
+  stored?: Record<string, unknown>
+  /** A path that resolves elsewhere, as a symbolic link does. */
+  links?: Record<string, string>
+  /** What the permission check answers beneath the plugin. */
+  checked?: { decision: 'ask' | 'deny'; rule?: string; hook?: string }
+  home?: string
+}
+
 /**
  * A session over an in-memory disk: `files` by absolute path, folders implied
- * by them, plus any `links` (a path that resolves elsewhere). Tool calls only
- * report success, except under /broken/.
+ * by them. Tool calls only report success, except under /broken/.
  */
-const session = (
-  on: On,
-  files: Disk,
-  stored: Record<string, unknown> = {},
-  links: Record<string, string> = {},
-  checked: 'ask' | 'deny' = 'ask',
-) => {
+const session = (on: On, files: Disk, { stored = {}, links = {}, checked = { decision: 'ask' }, home = HOME }: Options = {}) => {
   mock.store(on, stored)
-  mock.clock(on, { now: NOW })
+  const clock = mock.clock(on, { now: NOW })
   const panes = new Set<string>()
   const prompts: string[] = []
   const toasts: string[] = []
@@ -107,7 +120,7 @@ const session = (
 
   on('session.cwd', () => ({ value: PROJECT }))
   on('session.root', () => ({ value: PROJECT }))
-  on('env.get', (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
+  on('env.get', (_$, e) => ({ value: e.name === 'HOME' ? home : undefined }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('ui.open', (_$, e) => {
     panes.add(e.id)
@@ -130,8 +143,13 @@ const session = (
 
     return { isFilled: true }
   })
+  // The test engine runs on POSIX and reads `C:/…` as relative, putting the
+  // working folder in front; a Windows host would not, and takes either
+  // separator, so take the prefix back off and use `/` throughout.
+  const real = (path: string) => path.replace(/\\/g, '/').replace(/^.*\/(?=[A-Za-z]:\/)/, '')
+
   on('fs.read', (_$, e) => {
-    const file = files[e.path]
+    const file = files[real(e.path)]
 
     return file === undefined ? { deny: `ENOENT ${e.path}` } : { value: file.text }
   })
@@ -140,18 +158,19 @@ const session = (
 
     return { value: undefined }
   })
-  on('fs.exists', (_$, e) => ({ value: files[e.path] !== undefined || folders().has(e.path) }))
+  on('fs.exists', (_$, e) => ({ value: files[real(e.path)] !== undefined || folders().has(real(e.path)) }))
   on('fs.stat', (_$, e) => {
-    const isFile = files[e.path] !== undefined
-    if (!isFile && !folders().has(e.path) && links[e.path] === undefined) return { deny: `ENOENT ${e.path}` }
+    const path = real(e.path)
+    const isFile = files[path] !== undefined
+    if (!isFile && !folders().has(path) && links[path] === undefined) return { deny: `ENOENT ${path}` }
 
     return {
       value: {
         kind: isFile ? 'file' : 'dir',
         size: 0,
-        mtimeMs: files[e.path]?.mtimeMs ?? NOW,
-        isLink: links[e.path] !== undefined,
-        ...(e.resolve ? { realPath: links[e.path] ?? e.path } : {}),
+        mtimeMs: files[path]?.mtimeMs ?? NOW,
+        isLink: links[path] !== undefined,
+        ...(e.resolve ? { realPath: links[path] ?? path } : {}),
       } as never,
     }
   })
@@ -171,7 +190,7 @@ const session = (
   })
   on('tool.call', (_$, e) =>
     ({ result: {}, isError: String((e as { file_path?: unknown }).file_path).startsWith('/broken/') }) as never)
-  on('tool.check', () => ({ decision: checked }))
+  on('tool.check', () => checked)
   // What the engine draws where the plugin passes: an empty band.
   on('ui.render', ($, e) => {
     const { Box } = $.ui.resolve(e)
@@ -180,7 +199,7 @@ const session = (
   })
   on('session.start', () => ({ cwd: PROJECT }) as never)
 
-  return { panes, prompts, toasts, files }
+  return { panes, prompts, toasts, files, clock }
 }
 
 const START = { cwd: PROJECT, surface: 'terminal', isInteractive: true } as never
@@ -306,7 +325,7 @@ describe('progress display', () => {
   })
 
   test('a new session restores the last interview of the project', async ($, on) => {
-    session(on, { [PATH]: { text: json(INTERVIEW) } }, { [`last:${PROJECT}`]: PATH })
+    session(on, { [PATH]: { text: json(INTERVIEW) } }, { stored: { [`last:${PROJECT}`]: PATH } })
     await $.session.start(START)
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
@@ -361,7 +380,7 @@ describe('show and hide', () => {
   })
 
   test('hidden stays hidden in a new session', async ($, on) => {
-    session(on, { [PATH]: { text: json(INTERVIEW) } }, { [`last:${PROJECT}`]: PATH, isHidden: true })
+    session(on, { [PATH]: { text: json(INTERVIEW) } }, { stored: { [`last:${PROJECT}`]: PATH, isHidden: true } })
     await $.session.start(START)
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
@@ -388,7 +407,7 @@ describe('cleanup pane', () => {
   const disk = (): Disk => ({
     [`${PROJECT}/package.json`]: { text: '{}' },
     [PATH]: { text: json(INTERVIEW) },
-    [`${ROOT}/github.com-ana-shop/onboarding/interview.json`]: {
+    [`${ROOT}/${KEY}/onboarding/interview.json`]: {
       text: json({ ...INTERVIEW, slug: 'onboarding', title: 'Onboarding', status: 'done', promoted: { target: 'docs/plans/onboarding.md', state: 'pushed' } }),
       mtimeMs: OLD,
     },
@@ -421,7 +440,7 @@ describe('cleanup pane', () => {
     const { prompts, panes } = session(on, disk())
     await $.session.start(START)
     await $.command.run({ command: 'interview-cleanup', args: '' } as never)
-    const onboarding = `${ROOT}/github.com-ana-shop/onboarding`
+    const onboarding = `${ROOT}/${KEY}/onboarding`
 
     const pane = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...CLEANUP })
     await pane.press({ key: `row:${onboarding}` })
@@ -441,7 +460,7 @@ describe('cleanup pane', () => {
     const { files } = session(on, disk())
     await $.session.start(START)
     await $.command.run({ command: 'interview-cleanup', args: '' } as never)
-    const onboarding = `${ROOT}/github.com-ana-shop/onboarding`
+    const onboarding = `${ROOT}/${KEY}/onboarding`
 
     const pane = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...CLEANUP })
     await pane.press({ key: `row:${onboarding}` })
@@ -456,9 +475,11 @@ describe('cleanup pane', () => {
   test('three or more stale interviews raise one toast at session start', async ($, on) => {
     const files = disk()
     files[`${ROOT}/x/old/interview.json`] = { text: json({ ...INTERVIEW, slug: 'old' }), mtimeMs: NOW - 120 * DAY }
-    const { toasts } = session(on, files)
+    const { toasts, clock } = session(on, files)
     await $.session.start(START)
-    expect(toasts.some(text => text.includes('3 interviews could be tidied up'))).toBe(true)
+    expect(toasts.some(text => text.includes('could be tidied up'))).toBe(false)
+    await clock.advance(1)
+    expect(toasts.filter(text => text.includes('3 interviews could be tidied up'))).toHaveLength(1)
   })
 })
 
@@ -480,7 +501,7 @@ describe('writes without prompts', () => {
   })
 
   test('a link out of the interviews folder is not allowed', async ($, on) => {
-    session(on, { [PATH]: { text: json(INTERVIEW) } }, {}, { [`${ROOT}/escape`]: '/etc' })
+    session(on, { [PATH]: { text: json(INTERVIEW) } }, { links: { [`${ROOT}/escape`]: '/etc' } })
     await $.session.start(START)
 
     const escaped = await $.tool.check({ tool: 'Write', input: { file_path: `${ROOT}/escape/passwd` } } as never)
@@ -496,10 +517,129 @@ describe('writes without prompts', () => {
   })
 
   test('a deny from the person stands', async ($, on) => {
-    session(on, { [PATH]: { text: json(INTERVIEW) } }, {}, {}, 'deny')
+    session(on, { [PATH]: { text: json(INTERVIEW) } }, { checked: { decision: 'deny', reason: 'no' } as never })
     await $.session.start(START)
 
     const inside = await $.tool.check({ tool: 'Write', input: { file_path: `${DIR}/ledger.md` } } as never)
     expect(inside.decision).toBe('deny')
+  })
+})
+
+describe('paths', () => {
+  test('Windows separators are recognized and compared like POSIX ones', () => {
+    expect(isInterviewFile('C:\\Users\\ana\\.claude\\interviews\\k\\s\\interview.json')).toBe(true)
+    expect(isLedgerFile('C:\\Users\\ana\\.claude\\interviews\\k\\s\\ledger.md')).toBe(true)
+    expect(folderOf('C:\\a\\b\\ledger.md')).toBe('C:/a/b')
+    expect(isInside('c:/Users/ana/.claude/interviews/k/x.md', 'C:\\Users\\ana\\.claude\\interviews')).toBe(true)
+    expect(isInside('/home/ana/.claude/interviews-old/x', '/home/ana/.claude/interviews')).toBe(false)
+  })
+
+  test('a root, home, ~/.claude or anything above them is too broad', () => {
+    const guarded = ['/home/ana', '/home/ana/.claude']
+    expect(isTooBroad('/', guarded)).toBe(true)
+    expect(isTooBroad('C:/', guarded)).toBe(true)
+    expect(isTooBroad('/home', guarded)).toBe(true)
+    expect(isTooBroad('/home/ana', guarded)).toBe(true)
+    expect(isTooBroad('/home/ana/.claude', guarded)).toBe(true)
+    expect(isTooBroad('/home/ana/.claude/interviews', guarded)).toBe(false)
+    expect(isTooBroad('/home/ana/notes/interviews', guarded)).toBe(false)
+  })
+})
+
+describe('review fixes', () => {
+  test('an ask from a settings rule or a hook is never turned into allow', async ($, on) => {
+    session(on, { [PATH]: { text: json(INTERVIEW) } }, { checked: { decision: 'ask', rule: 'Write(~/.claude/**)' } })
+    await $.session.start(START)
+    const ruled = await $.tool.check({ tool: 'Write', input: { file_path: `${DIR}/ledger.md` } } as never)
+    expect(ruled.decision).toBe('ask')
+  })
+
+  test('an ask from a PreToolUse hook stands too', async ($, on) => {
+    session(on, { [PATH]: { text: json(INTERVIEW) } }, { checked: { decision: 'ask', hook: 'PreToolUse' } })
+    await $.session.start(START)
+    const hooked = await $.tool.check({ tool: 'Write', input: { file_path: `${DIR}/ledger.md` } } as never)
+    expect(hooked.decision).toBe('ask')
+  })
+
+  for (const folder of ['~', '~/.claude', '/']) {
+    test(`interviews_dir "${folder}" is too broad to auto-allow`, { options: { interviews_dir: folder } }, async ($, on) => {
+      const { toasts, clock } = session(on, { [`${HOME}/.claude/settings.json`]: { text: '{}' }, [`${HOME}/.bashrc`]: { text: '' } })
+      await $.session.start(START)
+      for (const file of [`${HOME}/.claude/settings.json`, `${HOME}/.bashrc`, `${HOME}/.claude/interviews/k/s/ledger.md`]) {
+        const verdict = await $.tool.check({ tool: 'Write', input: { file_path: file } } as never)
+        expect(verdict.decision).toBe('ask')
+      }
+      await clock.advance(1)
+      expect(toasts.some(text => text.includes('too broad'))).toBe(true)
+    })
+  }
+
+  test('an interview.json written outside the interviews folder is ignored', async ($, on) => {
+    const fixture = `${PROJECT}/test/fixtures/interview.json`
+    session(on, { [fixture]: { text: json({ goal: 'fixture' }) } })
+    await $.session.start(START)
+    await $.tool.call({ tool: 'Write', file_path: fixture, content: json({ goal: 'fixture' }) })
+
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+    expect(await band.find({ key: 'map' })).toBeUndefined()
+  })
+
+  test('a remembered path outside the interviews folder is not restored', async ($, on) => {
+    const fixture = `${PROJECT}/test/fixtures/interview.json`
+    session(on, { [fixture]: { text: json(INTERVIEW) } }, { stored: { [`last:${PROJECT}`]: fixture } })
+    await $.session.start(START)
+
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+    expect(await band.find({ key: 'map' })).toBeUndefined()
+  })
+
+  test('no action is armed until an interview is picked, and Keep or a tab switch disarms it', async ($, on) => {
+    const onboarding = `${ROOT}/${KEY}/onboarding`
+    session(on, {
+      [`${PROJECT}/package.json`]: { text: '{}' },
+      [`${onboarding}/interview.json`]: {
+        text: json({ ...INTERVIEW, slug: 'onboarding', status: 'done' }),
+        mtimeMs: NOW - 12 * DAY,
+      },
+      [`${ROOT}/${KEY}/old/interview.json`]: { text: json({ ...INTERVIEW, slug: 'old' }), mtimeMs: NOW - 120 * DAY },
+    })
+    await $.session.start(START)
+    await $.command.run({ command: 'interview-cleanup', args: '' } as never)
+
+    const pane = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...CLEANUP })
+    expect(await pane.find({ key: 'delete' })).toBeUndefined()
+    expect(await pane.find({ text: /Select an interview/ })).toBeDefined()
+
+    await pane.press({ key: `row:${onboarding}` })
+    expect(await pane.find({ key: 'delete' })).toBeDefined()
+    await pane.press({ key: 'keep' })
+    expect(await pane.find({ key: 'delete' })).toBeUndefined()
+
+    await pane.press({ key: `row:${ROOT}/${KEY}/old` })
+    await pane.press({ key: 'tab:all' })
+    expect(await pane.find({ key: 'delete' })).toBeUndefined()
+  })
+
+  test('Windows paths: writes in the interviews folder are allowed and ledger edits refresh', async ($, on) => {
+    const home = 'C:/Users/ana'
+    const dir = `${home}/.claude/interviews/${KEY}/billing-retries`
+    const { files } = session(
+      on,
+      { [`${dir}/interview.json`]: { text: json(INTERVIEW) }, [`${dir}/ledger.md`]: { text: '' } },
+      { home: 'C:\\Users\\ana' },
+    )
+    await $.session.start(START)
+    const winDir = dir.replace(/\//g, '\\')
+
+    const verdict = await $.tool.check({ tool: 'Write', input: { file_path: `${winDir}\\ledger.md` } } as never)
+    expect(verdict.decision).toBe('allow')
+
+    await $.tool.call({ tool: 'Write', file_path: `${winDir}\\interview.json`, content: '' } as never)
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+    expect(await band.find({ text: /0 decisions/ })).toBeDefined()
+
+    files[`${dir}/ledger.md`] = { text: LEDGER }
+    await $.tool.call({ tool: 'Edit', file_path: `${winDir}\\ledger.md`, old_string: 'a', new_string: 'a' } as never)
+    expect(await band.find({ text: /2 decisions/ })).toBeDefined()
   })
 })

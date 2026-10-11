@@ -17,20 +17,22 @@ SKILL.md names two folders with their real paths filled in. Write them out liter
 
 ## Project key
 
-The key must be the same on every machine and in every worktree of a project, and must never collide.
+The key must be the same on every machine, worktree and spelling of the remote, and two projects must never share one. So it is a readable name plus a short hash of the project's identity:
 
-1. Find the project root: `git rev-parse --show-toplevel`, or the session's folder outside git.
-2. If `git remote get-url origin` succeeds, the key is that URL normalized:
-   - drop the scheme and any `user@`, and a trailing `.git`;
-   - turn `:` and `/` into `-`;
-   - lowercase it.
+```bash
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)"
+if url="$(git -C "$root" remote get-url origin 2>/dev/null)"; then
+  # host/path of the remote: no scheme, user, port or .git; lowercase
+  id="$(printf %s "$url" | sed -E 's#^[a-z+]+://##; s#^[^@/]+@##; s#^([^/:]+):[0-9]+/#\1/#; s#^([^/:]+):#\1/#; s#\.git/?$##; s#/+$##' | tr 'A-Z' 'a-z')"
+else
+  id="path:$(cd "$root" && pwd -P)"
+fi
+hash="$(printf %s "$id" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8)"
+name="$(basename "${id#path:}")"
+printf '%s-%s\n' "$(printf %s "$name" | tr -c 'A-Za-z0-9._-' '-')" "$hash"
+```
 
-   For example, `git@github.com:Ana/Shop.git` and `https://github.com/ana/shop` both become `github.com-ana-shop`.
-3. Otherwise the key is the root folder's name plus the first 8 hex digits of the SHA-256 of its real path:
-   ```bash
-   root="$(pwd -P)"; hash="$(printf %s "$root" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8)"
-   printf '%s-%s\n' "$(basename "$root")" "$hash"
-   ```
+`git@github.com:Ana/Shop.git`, `https://github.com/ana/shop` and `ssh://git@github.com:22/ana/shop.git` all give `shop-6e3ccdf9`. Without a remote, the key comes from the folder's real path, so moving the folder changes it; relink in that case (below).
 
 Record the project in `interview.json` as `"project": { "path": "<root>", "remote": "<remote url, if any>" }`. The cleanup pane uses `path` to spot a project folder that has gone.
 
@@ -67,6 +69,7 @@ If the outcome is promoted again later (the interview was reopened), read the ta
 
 When the user asks to archive an interview (the cleanup pane's Archive puts the request in their prompt):
 
+0. Check the archive folder SKILL.md gave you is a real absolute path containing `/plugins/data/`. If it still reads as a `${...}` placeholder, or is empty, **don't archive**: say the plugin's data folder is unknown in this session, and offer to leave the interview as is or delete it.
 1. Check it's promoted, or that the user accepts archiving it unpromoted. Say what will happen in one line.
 2. Set `"status": "archived"` in its `interview.json`.
 3. Move the folder: `mkdir -p "<archive folder>/<project-key>" && mv "<interview dir>" "<archive folder>/<project-key>/"`.

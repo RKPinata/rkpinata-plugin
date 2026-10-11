@@ -3,6 +3,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { CleanupTab, Entry, LedgerCounts, Loaded, ThreadStatus } from '../types'
 import {
+  DAY,
   SNOOZE_DAYS,
   countLedger,
   daysBetween,
@@ -10,14 +11,19 @@ import {
   describePromotion,
   expandHome,
   folderOf,
+  isAbsolute,
   isInside,
   isInterviewFile,
+  isLedgerFile,
+  isSamePath,
+  isTooBroad,
   parseInterview,
   progress,
   ratioBar,
   staleReasons,
   summary,
   threadBar,
+  toSlash,
   withSnooze,
 } from './interview'
 
@@ -26,7 +32,6 @@ const CLEANUP = 'interview-cleanup'
 const HIDDEN_KEY = 'isHidden'
 const DEFAULT_ROOT = '~/.claude/interviews'
 const STALE_TOAST_AT = 3
-const DAY = 24 * 60 * 60 * 1000
 
 const current = atom({ plugin: 'dynamic-interview', key: 'current' } as const, null)
 const isHidden = atom({ plugin: 'dynamic-interview', key: 'isHidden' } as const, false)
@@ -91,18 +96,19 @@ const setHidden = async ($: EngineInterface, hidden: boolean) => {
 }
 
 /**
- * Where a path lands once links are resolved; for a file not written yet, its
- * nearest existing folder resolved plus the rest. Undefined for a relative
- * path or one that climbs with `..`.
+ * Where a path lands once links are resolved, with `/` separators; for a file
+ * not written yet, its nearest existing folder resolved plus the rest.
+ * Undefined for a relative path or one that climbs with `..`.
  */
 const placed = async ($: EngineInterface, path: string): Promise<string | undefined> => {
-  if (!path.startsWith('/') || /(^|\/)\.\.(\/|$)/.test(path)) return undefined
+  const slashed = toSlash(path)
+  if (!isAbsolute(slashed) || /(^|\/)\.\.(\/|$)/.test(slashed)) return undefined
 
-  let head = path
+  let head = slashed
   let tail = ''
   for (let depth = 0; depth < 64; depth += 1) {
     const stat = await $.fs.stat(head, { resolve: true }).catch(() => undefined)
-    if (stat?.realPath !== undefined) return stat.realPath + tail
+    if (stat?.realPath !== undefined) return toSlash(stat.realPath) + tail
     const cut = head.lastIndexOf('/')
     if (cut <= 0) return undefined
     tail = head.slice(cut) + tail
@@ -114,45 +120,104 @@ const placed = async ($: EngineInterface, path: string): Promise<string | undefi
 
 const interviewsRoot = async ($: EngineInterface, configured: string) => expandHome(configured, await home($))
 
-/** Lists every interview under the interviews folder, stale ones first. */
+type Root = { path: string | undefined; isSafe: boolean }
+
+// The resolved interviews folder, worked out once per configured folder and home.
+let rootCache: { key: string; root: Root } | undefined
+
+/**
+ * The interviews folder with links resolved, and whether it is narrow enough
+ * to auto-allow writes in: never a filesystem root, the home folder,
+ * ~/.claude, or a folder above one of them.
+ */
+const resolveRoot = async ($: EngineInterface, configured: string): Promise<Root> => {
+  const homePath = await home($)
+  const key = `${configured}\n${homePath ?? ''}`
+  if (rootCache?.key === key) return rootCache.root
+
+  const path = await placed($, expandHome(configured, homePath))
+  const guarded = homePath === undefined
+    ? []
+    : (await Promise.all([placed($, homePath), placed($, `${homePath}/.claude`)])).filter(
+        (one): one is string => one !== undefined,
+      )
+  const root: Root = { path, isSafe: path !== undefined && !isTooBroad(path, guarded) }
+  rootCache = { key, root }
+
+  return root
+}
+
+/** Whether a path lies inside the interviews folder, links resolved. */
+const isInInterviews = async ($: EngineInterface, configured: string, path: string): Promise<boolean> => {
+  const { path: root } = await resolveRoot($, configured)
+  const target = await placed($, path)
+
+  return root !== undefined && target !== undefined && isInside(target, root)
+}
+
+/** Reads one interview folder for the cleanup list; undefined when it holds no interview. */
+const readEntry = async (
+  $: EngineInterface,
+  project: string,
+  dir: string,
+  now: number,
+): Promise<Entry | undefined> => {
+  const file = `${dir}/interview.json`
+  const [source, stat] = await Promise.all([readText($, file), $.fs.stat(file).catch(() => undefined)])
+  const interview = source === undefined ? undefined : parseInterview(source)
+  if (interview === undefined) return undefined
+
+  const idleDays = daysBetween(stat?.mtimeMs ?? now, now)
+  const projectPath = interview.project?.path
+  const isProjectMissing = projectPath !== undefined && !(await $.fs.exists(projectPath).catch(() => true))
+  const { done, total } = progress(interview)
+
+  return {
+    dir,
+    title: interview.title,
+    slug: interview.slug,
+    project,
+    status: interview.status,
+    progress: `${done}/${total}`,
+    idleDays,
+    reasons: staleReasons(interview, idleDays, now, isProjectMissing),
+  }
+}
+
+/** Lists every interview under the interviews folder, stale ones first, reading them in parallel. */
 const scan = async ($: EngineInterface, configured: string): Promise<Entry[]> => {
   const root = await interviewsRoot($, configured)
   const now = await $.clock.now()
-  const found: Entry[] = []
   const isFolder = (entry: { name: string; kind: string }) =>
     entry.kind === 'dir' && !entry.name.startsWith('.') && !entry.name.startsWith('_')
 
-  for (const project of (await $.fs.list(root).catch(() => [])).filter(isFolder)) {
-    for (const slug of (await $.fs.list(`${root}/${project.name}`).catch(() => [])).filter(isFolder)) {
-      const dir = `${root}/${project.name}/${slug.name}`
-      const source = await readText($, `${dir}/interview.json`)
-      const interview = source === undefined ? undefined : parseInterview(source)
-      if (interview === undefined) continue
+  const projects = (await $.fs.list(root).catch(() => [])).filter(isFolder)
+  const perProject = await Promise.all(
+    projects.map(async project => {
+      const slugs = (await $.fs.list(`${root}/${project.name}`).catch(() => [])).filter(isFolder)
 
-      const stat = await $.fs.stat(`${dir}/interview.json`).catch(() => undefined)
-      const idleDays = daysBetween(stat?.mtimeMs ?? now, now)
-      const projectPath = interview.project?.path
-      const isProjectMissing =
-        projectPath !== undefined && !(await $.fs.exists(projectPath).catch(() => true))
-      const { done, total } = progress(interview)
-
-      found.push({
-        dir,
-        title: interview.title,
-        slug: interview.slug,
-        project: project.name,
-        status: interview.status,
-        progress: `${done}/${total}`,
-        idleDays,
-        reasons: staleReasons(interview, idleDays, now, isProjectMissing),
-      })
-    }
-  }
+      return Promise.all(slugs.map(slug => readEntry($, project.name, `${root}/${project.name}/${slug.name}`, now)))
+    }),
+  )
+  const found = perProject.flat().filter((entry): entry is Entry => entry !== undefined)
 
   found.sort((a, b) => b.reasons.length - a.reasons.length || b.idleDays - a.idleDays)
   await update($, entries, () => found)
+  // A list that changed under the selection must not leave an action aimed at a row nobody picked.
+  await update($, selected, picked => (found.some(entry => entry.dir === picked) ? picked : null))
 
   return found
+}
+
+/** After the session is ready: says once if interviews pile up, or if auto-allow is off for a too-broad folder. */
+const tidyNotice = async ($: EngineInterface, configured: string, isAutoAllowed: boolean) => {
+  const stale = (await scan($, configured)).filter(entry => entry.reasons.length > 0)
+  if (stale.length >= STALE_TOAST_AT) {
+    $.ui.toast(`${stale.length} interviews could be tidied up: /interview-cleanup`)
+  }
+  if (isAutoAllowed && !(await resolveRoot($, configured)).isSafe) {
+    $.ui.toast('dynamic-interview: the interviews folder is too broad, so its writes will still ask for permission.')
+  }
 }
 
 const openCleanup = async ($: EngineInterface, configured: string) => {
@@ -204,12 +269,12 @@ export const register: Register = (on, options: PluginOptions) => {
     })
     if ((await $.store.get(HIDDEN_KEY)) === true) await update($, isHidden, () => true)
     const last = await $.store.get(await storeKey($))
-    if (typeof last === 'string') await load($, last)
+    if (typeof last === 'string' && (await isInInterviews($, configured, last))) await load($, last)
 
-    const stale = (await scan($, configured)).filter(entry => entry.reasons.length > 0)
-    if (stale.length >= STALE_TOAST_AT) {
-      $.ui.toast(`${stale.length} interviews could be tidied up: /interview-cleanup`)
-    }
+    // Scanning every interview is not worth delaying the first prompt for.
+    $.clock.after(1, () => {
+      void tidyNotice($, configured, isAutoAllowed).catch(() => undefined)
+    })
 
     return next(e)
   })
@@ -249,20 +314,24 @@ export const register: Register = (on, options: PluginOptions) => {
     return { text: `Interview cleanup opened: ${stale} of ${all.length} interviews could be tidied.` }
   })
 
-  // The skill writes interview.json after every round; show what the main loop writes.
-  // Reads (browsing candidates) and subagents' writes leave the display alone.
+  // The skill writes interview.json and ledger.md after every round; show what
+  // the main loop writes inside the interviews folder. Reads (browsing
+  // candidates), subagents' writes and same-named files elsewhere (a test
+  // fixture) leave the display alone.
   on('tool.call', async ($, e, next) => {
     const ran = await next(e)
     const tool = String(e.tool)
-    const isWrite = tool === 'Write' || tool === 'Edit'
-    const path = isWrite && e.agentId === undefined ? (e as { file_path?: unknown }).file_path : undefined
+    const path = (tool === 'Write' || tool === 'Edit') && e.agentId === undefined
+      ? (e as { file_path?: unknown }).file_path
+      : undefined
     const hasFailed = ran.deny !== undefined || ran.isError === true
+    const isOurs = !hasFailed && (isInterviewFile(path) || isLedgerFile(path)) && (await isInInterviews($, configured, path))
 
-    if (isInterviewFile(path) && !hasFailed) {
+    if (isOurs && isInterviewFile(path)) {
       await load($, path).catch(() => undefined)
-    } else if (isWrite && !hasFailed && typeof path === 'string' && path.endsWith('/ledger.md')) {
+    } else if (isOurs && isLedgerFile(path)) {
       const shown = await read($, current)
-      if (shown !== null && folderOf(shown.path) === path.slice(0, -'/ledger.md'.length)) {
+      if (shown !== null && isSamePath(folderOf(shown.path), folderOf(path))) {
         await load($, shown.path).catch(() => undefined)
       }
     }
@@ -270,20 +339,19 @@ export const register: Register = (on, options: PluginOptions) => {
     return ran
   }).catch(($, e, next) => next(e))
 
-  // Saving every round must not cost a permission prompt: writes that would be
-  // asked about and land inside the interviews folder are allowed. A deny from
-  // the person's rules stands; anything outside the folder is left as it was.
+  // Saving every round must not cost a permission prompt: a write inside the
+  // interviews folder that would only be asked about by default is allowed.
+  // Anything a rule, a hook or an organization ceiling decided stands, and
+  // nothing is allowed when the folder is too broad (a root, home, ~/.claude).
   on('tool.check', async ($, e, next) => {
     const verdict = await next(e)
-    if (!isAutoAllowed || verdict.decision !== 'ask' || (e.tool !== 'Write' && e.tool !== 'Edit')) {
-      return verdict
-    }
-    const file = (e.input as { file_path?: unknown } | null)?.file_path
-    if (typeof file !== 'string') return verdict
+    const isDefaultAsk =
+      verdict.decision === 'ask' && verdict.rule === undefined && verdict.hook === undefined && verdict.ceiling !== 'ask'
+    if (!isAutoAllowed || !isDefaultAsk || (e.tool !== 'Write' && e.tool !== 'Edit')) return verdict
 
-    const root = await placed($, await interviewsRoot($, configured))
-    const target = await placed($, file)
-    if (root === undefined || target === undefined || !isInside(target, root)) return verdict
+    const file = (e.input as { file_path?: unknown } | null)?.file_path
+    if (typeof file !== 'string' || !(await resolveRoot($, configured)).isSafe) return verdict
+    if (!(await isInInterviews($, configured, file))) return verdict
 
     return { decision: 'allow', reason: 'dynamic-interview: a write inside the interviews folder' }
   }).catch(($, e, next) => next(e))
@@ -410,7 +478,7 @@ export const register: Register = (on, options: PluginOptions) => {
     const stale = all.filter(entry => entry.reasons.length > 0)
     const list = shownTab === 'stale' ? stale : all
     const picked = await read($, selected)
-    const chosen = list.find(entry => entry.dir === picked) ?? list[0]
+    const chosen = picked === null ? undefined : list.find(entry => entry.dir === picked)
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
@@ -419,7 +487,10 @@ export const register: Register = (on, options: PluginOptions) => {
             key="tab:stale"
             plain
             hotkey="s"
-            onPress={() => update($, tab, () => 'stale' as const)}
+            onPress={async () => {
+              await update($, tab, () => 'stale' as const)
+              await update($, selected, () => null)
+            }}
           >
             {shownTab === 'stale' ? '▸ ' : '  '}Stale ({stale.length})
           </Button>
@@ -428,7 +499,10 @@ export const register: Register = (on, options: PluginOptions) => {
             key="tab:all"
             plain
             hotkey="l"
-            onPress={() => update($, tab, () => 'all' as const)}
+            onPress={async () => {
+              await update($, tab, () => 'all' as const)
+              await update($, selected, () => null)
+            }}
           >
             {shownTab === 'all' ? '▸ ' : '  '}All ({all.length})
           </Button>
@@ -448,6 +522,12 @@ export const register: Register = (on, options: PluginOptions) => {
             </Text>
           </Button>
         ))}
+        {chosen === undefined && list.length > 0 && (
+          <Box flexDirection="column">
+            <Text> </Text>
+            <Text dimColor>Select an interview to act on it.</Text>
+          </Box>
+        )}
         {chosen !== undefined && (
           <Box flexDirection="column">
             <Text> </Text>

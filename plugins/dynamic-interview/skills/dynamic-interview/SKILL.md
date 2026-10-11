@@ -18,7 +18,7 @@ Work through the phases below. They loop: Frame once, then repeat Map → Round 
 ## Where the files live
 
 - **Interviews folder** (active drafts): `${user_config.interviews_dir}`. If that still reads as a `${...}` placeholder, use `~/.claude/interviews`. It is outside every project and survives a plugin uninstall.
-- **Archive folder** (finished interviews): `${CLAUDE_PLUGIN_DATA}/archive`. Claude Code deletes it when the plugin is uninstalled.
+- **Archive folder** (finished interviews): `${CLAUDE_PLUGIN_DATA}/archive`. Claude Code deletes it when the plugin is uninstalled. If that still reads as a `${...}` placeholder, there is no archive folder in this session: never archive; offer to keep or delete instead.
 - Each interview is `<interviews folder>/<project-key>/<slug>/`, holding `interview.json` and `ledger.md`. How to compute `<project-key>`, what to do in a cloud session, and the promote, archive and delete procedures are in `references/storage.md`. Read it before the first write of an interview, and whenever the user asks to promote, archive, delete or relink one.
 - These paths are filled in here only. In Bash and in `references/`, write them out literally.
 
@@ -43,7 +43,7 @@ Don't ask a single content question before the frame is agreed. Propose it yours
 > **Goal:** Decide how failed charges are retried after the queue migration.
 > **Mode:** plan, producing a phased plan document.
 > **Stop at:** service boundaries and data ownership, not function signatures. **Enough when:** every phase has a testable exit criterion.
-> Drafts go to `~/.claude/interviews/github.com-ana-shop/billing-retries/`, outside the repo. OK?
+> Drafts go to `~/.claude/interviews/shop-6e3ccdf9/billing-retries/`, outside the repo. OK?
 
 - **Mode** is one of `understand` · `plan` · `explore` · `poc` · `debug` · `build`. It decides what "done" means. Only `build`, and `poc` once scoped, ends in writing code.
 - **Stop at** is the depth threshold, stated in the subject's own terms. It is the yardstick for "too deep".

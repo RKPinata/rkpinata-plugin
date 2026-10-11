@@ -28,9 +28,9 @@ Paced, goal-anchored interviews that build shared understanding before acting. T
   - `/interview-map` opens or closes a pane with the full thread map, the promotion state and the next step;
   - `/interview-progress [show|hide]` shows or hides the band and pane; with no argument it toggles. The choice is remembered across sessions;
   - `/interview-cleanup` opens a keyboard- and click-driven list (Stale / All) of finished, idle or orphaned interviews, with **Open**, **Archive**, **Keep 30d** and **Delete**. Open, Archive and Delete put the request in your prompt for Claude to carry out in view; the mod itself never moves or deletes files;
-  - writes inside the interviews folder are allowed without a permission prompt each round (your deny rules still apply; turn it off with the `auto_allow_writes` option).
+  - writes inside the interviews folder skip the default permission prompt each round. Anything your own rules or hooks decide (ask or deny) still applies, and it's off when the folder is too broad (a filesystem root, your home folder, `~/.claude` or above). Turn it off with the `auto_allow_writes` option.
 
-  The band and counts refresh when Claude writes `interview.json` or `ledger.md`. Where mods don't draw (VS Code, cloud sessions, `claude -p`), the skill prints an ASCII map instead.
+  The band and counts refresh when Claude writes `interview.json` or `ledger.md` inside the interviews folder. Where mods don't draw (VS Code, cloud sessions, `claude -p`), the skill prints an ASCII map instead.
 
 ## Where interviews are stored
 
@@ -43,7 +43,7 @@ Nothing goes into your repository while you're being interviewed.
 └── archive/<project-key>/<slug>/              finished interviews; deleted on plugin uninstall
 ```
 
-- **The project key** is the git remote, e.g. `github.com-ana-shop`, so it's the same on every machine and worktree. Without a remote, it's the folder name plus a short hash of its path.
+- **The project key** is the repo name plus a short hash of its git remote, e.g. `shop-6e3ccdf9`, so it's the same on every machine, worktree and spelling of the remote, and two projects never share one. Without a remote, the hash is of the folder's path.
 - **At the end, the outcome is promoted** to where you choose: a repo path, a doc tool, or kept in the interview folder. It carries a short Decisions and To-verify section. Commits are agreed then, once per goal, and only when the target is the repo: `none`, `local` or `push`, plus the branch.
 - **Finished interviews are archived** into the plugin's data folder. Uninstalling the plugin removes them; active drafts survive.
 - **In a cloud or throwaway session,** Claude says the drafts won't survive and offers a pushed branch or a doc tool instead.
