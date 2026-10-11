@@ -1,0 +1,53 @@
+name: Tag plugin releases
+
+# Creates a <plugin>--v<version> tag for every in-repo plugin whose current
+# plugin.json version has not been tagged yet. Dependency version ranges
+# resolve against these tags.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - ".claude-plugin/marketplace.json"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Validate
+        run: scripts/validate.sh
+
+      - name: Tag new versions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for dir in plugins/*/; do
+            [ -f "$dir.claude-plugin/plugin.json" ] || continue
+            name="$(jq -r .name "$dir.claude-plugin/plugin.json")"
+            version="$(jq -r .version "$dir.claude-plugin/plugin.json")"
+            tag="$name--v$version"
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "• $tag already exists"
+            else
+              claude plugin tag "$dir" --push
+            fi
+          done
