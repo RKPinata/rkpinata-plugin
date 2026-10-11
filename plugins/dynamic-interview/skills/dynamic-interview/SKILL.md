@@ -17,7 +17,7 @@ Work through the phases below. They loop: Frame once, then repeat Map → Round 
 
 ## Phase 0: Resume or start
 
-Look for an existing interview before starting one: the user mentioning one, an `interview.json` under `.interviews/`, `docs/interviews/` or a path they name. If one exists, **resume** it:
+Look for an existing interview before starting one: a path the user names, then an `interview.json` under `~/.claude/interviews/<project-key>/` (see Continuity), `.interviews/`, `docs/interviews/` or the project's planning-docs folder. If several match, list them and ask which one. If one exists, **resume** it:
 
 1. Read `interview.json` and `ledger.md`.
 2. Give a recap of at most 5 lines: goal, outcome, what's decided, what's open, and where the last session stopped (its `next`).
@@ -34,7 +34,7 @@ Don't ask a single content question before these are agreed. Propose them yourse
 - **Outcome**: the concrete artifact or state the interview produces. For example, "a phased plan in `docs/plans/x.md`", "a written explanation of how billing retries work", "3 ranked options with trade-offs", "a reproducible failing case plus 2 hypotheses to test", or "an agreed spec, then implementation".
 - **Depth threshold**: the level of detail you stop at. State it in the terms of the subject, e.g. "service boundaries and data ownership, not function signatures" or "enough to pick a library, not to configure it". This is the yardstick for "too deep".
 - **Sufficiency test**: one sentence of the form "We have enough when ___", e.g. "...when every phase has an owner-less, testable exit criterion" or "...when I can explain the retry path back and you agree."
-- **Continuity**: where the ledger lives and whether it is committed (see Continuity). Ask this here, once.
+- **Continuity**: where the ledger lives, in the user's personal folder, untracked in the repo or shared in the repo (see Continuity). Ask this here, once, unless a remembered choice exists.
 
 Write `interview.json` and `ledger.md` as soon as Frame is agreed.
 
@@ -117,9 +117,21 @@ The interview's state lives in a directory, `<root>/<slug>/`:
 - `interview.json`: machine-readable progress (goal, mode, threads, counts, next step). The optional progress pane reads this file. Its schema is in `references/state-and-ledger.md`.
 - `ledger.md`: the human-readable record (decisions, facts with trust levels, open questions, to-verify list, parked and spun-off threads, session log). Its format is in the same reference.
 
-**Where** (ask during Frame, and recommend one):
-- `docs/interviews/` and **committed** suits plans and understanding the team should see, or work that spans many sessions or machines.
-- `.interviews/` and **git-ignored** (add it to `.gitignore`) suits personal exploration, debugging and throwaway PoCs. If the folder isn't a git repo, use `.interviews/` without asking.
+**Where**: many projects have conventions about what may live in the repo, and some users can't add files there at all. So the interview **never touches the repository unless the user picks a repo location**. Before asking, look for the project's own conventions: `CLAUDE.md`, `CONTRIBUTING`, and an existing folder for planning docs (`docs/adr/`, `docs/rfcs/`, `docs/design/`). Then ask once during Frame and recommend one of these:
+
+| Option | Path | Touches the repo? | Suits |
+|---|---|---|---|
+| **Personal** (default) | `~/.claude/interviews/<project-key>/<slug>/` | No | Users who can't or don't want to add files to the project, and anything personal. Recommend it whenever you're unsure. |
+| **Local, untracked** | `.interviews/<slug>/`, excluded through `.git/info/exclude` | Only an untracked folder. No tracked file changes. | Keeping notes next to the code without anyone else seeing them. |
+| **Shared** | the project's planning-docs folder if it has one, else `docs/interviews/<slug>/` | Yes. The files are committed when the user commits. | Plans and understanding the team should review. Only when project conventions allow it. |
+
+- `<project-key>` is the project's absolute path with every `/` (and `\`, `:`) replaced by `-`, e.g. `/home/ana/shop` → `-home-ana-shop`. It's stable and needs no repo change.
+- **Never edit `.gitignore`** or any other tracked file to hide the interview. To exclude, append `.interviews/` to `.git/info/exclude`, which is local and never committed. If that file isn't writable or the project isn't a git repo, use Personal instead.
+- **Never commit** interview files yourself. Commits happen only when the user asks, and only for the Shared option.
+- The **outcome** artifact (the plan, the explanation) follows the same rule: it goes in the interview folder unless the user names a path in the repo.
+- If the user wants the choice remembered, record it in the Personal folder as `~/.claude/interviews/<project-key>/location` (one line: `personal`, `local` or `shared:<path>`). Read that file before asking in later interviews on the same project. It lives outside the repo, so remembering is never disruptive.
+- Personal storage stays on this machine. In a cloud or throwaway environment it disappears with the environment, so say so when you recommend it there.
+- The interview can be moved later by copying its folder; tell the user the new path so the next session finds it.
 
 **When to write**:
 - after Frame;
@@ -127,7 +139,7 @@ The interview's state lives in a directory, `<root>/<slug>/`:
 - immediately when the user states a decision unprompted;
 - before the session ends or the context is likely to compact: set `next` to the exact next round, so the next session starts cold without re-asking.
 
-Don't write a ledger entry for a round that changed nothing. Commit the ledger only if the user chose the committed option, and only when they ask for commits.
+Don't write a ledger entry for a round that changed nothing.
 
 ## Presentation
 

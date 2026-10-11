@@ -33,10 +33,15 @@ Paced, goal-anchored interviews that build shared understanding before acting. T
 
 ## Where interviews are stored
 
-Claude asks once, during framing:
+The interview **doesn't touch your repository unless you choose a repo location**: no `.gitignore` edits and no commits. Claude checks the project's conventions, asks once while framing, and can remember your choice outside the repo.
 
-- `docs/interviews/<slug>/`, committed: for plans and understanding the team should see, or for work spanning machines.
-- `.interviews/<slug>/`, git-ignored: for personal exploration, debugging and PoCs.
+| Option | Path | Repo impact |
+|---|---|---|
+| **Personal** (default) | `~/.claude/interviews/<project-key>/<slug>/` | none |
+| **Local, untracked** | `.interviews/<slug>/`, excluded through `.git/info/exclude` | an untracked folder only |
+| **Shared** | the project's planning-docs folder, or `docs/interviews/<slug>/` | files you commit yourself |
+
+`<project-key>` is the project's absolute path with `/` replaced by `-`. Personal storage stays on the machine, so in a cloud or throwaway environment pick Shared if the interview must survive.
 
 ## Develop
 

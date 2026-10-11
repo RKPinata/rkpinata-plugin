@@ -211,6 +211,16 @@ describe('progress display', () => {
     expect(await band.find({ text: /billing-retries/ })).toBeDefined()
   })
 
+  test('an interview kept outside the repo shows and restores too', async ($, on) => {
+    const personal = '/home/ana/.claude/interviews/-proj/billing-retries/interview.json'
+    session(on, { [personal]: JSON.stringify(INTERVIEW) })
+    await $.session.start({ cwd: CWD, surface: 'terminal', isInteractive: true } as never)
+    await $.tool.call({ tool: 'Write', file_path: personal, content: JSON.stringify(INTERVIEW) })
+
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+    expect(await band.find({ text: /billing-retries/ })).toBeDefined()
+  })
+
   test('a done interview leaves the band', async ($, on) => {
     const done = JSON.stringify({ ...INTERVIEW, status: 'done' })
     session(on, { [PATH]: done })

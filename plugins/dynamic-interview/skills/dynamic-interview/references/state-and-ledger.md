@@ -1,6 +1,6 @@
 # State and ledger formats
 
-An interview lives in `<root>/<slug>/` (`<root>` is `docs/interviews` or `.interviews`; `<slug>` is kebab-case). It holds two files: `interview.json` for machines and `ledger.md` for people. Update both in the same step.
+An interview lives in `<root>/<slug>/`, where `<root>` is `~/.claude/interviews/<project-key>` (Personal, the default), `.interviews` (local, untracked) or the project's shared planning-docs folder (see Continuity in SKILL.md), and `<slug>` is kebab-case. It holds two files: `interview.json` for machines and `ledger.md` for people. Update both in the same step.
 
 ## interview.json
 
@@ -57,7 +57,7 @@ Append-mostly. Number the entries so they can be referenced (`D4`, `F2`, `Q3`). 
 - **Mode:** plan · **Outcome:** Phased plan in docs/plans/billing-retries.md
 - **Depth:** Service boundaries and data ownership; not function signatures
 - **Enough when:** Every phase has a testable exit criterion
-- **Ledger:** committed (docs/interviews/)
+- **Ledger:** personal (~/.claude/interviews/-home-ana-shop/billing-retries/)
 - **Skills:** superpowers:brainstorming, merged for T5 (chosen session 1)
 
 ## Decisions
