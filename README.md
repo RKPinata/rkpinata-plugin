@@ -15,6 +15,7 @@ A [Claude Code](https://code.claude.com) plugin marketplace that hosts multiple 
 | Plugin | Source | Description |
 |--------|--------|-------------|
 | **faah** | [external](https://github.com/RKPinata/frontend-architecture-automation-hub) | FAAH: Frontend Architecture Automation Hub. Orchestrates architecture and feature planning, codebase investigation, project caches, and implementation blueprints. |
+| **dynamic-interview** | [in-repo](plugins/dynamic-interview) | Paced, multi-session interviews for understanding, planning, exploring, PoCs and debugging, with a decision ledger and a live progress pane. |
 | **scheherazade** | [external](https://github.com/RKPinata/scheherazade) | A workshop for fiction writers. Bundles three skills: `scheherazade` (Socratic coach), `paint-a-picture` (Le Guin-voiced scene visualiser), `index-omnium` (notes organiser). |
 
 In-repo plugins live under [`plugins/`](plugins/); see each plugin's `README.md` and `CHANGELOG.md`.

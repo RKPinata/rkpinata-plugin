@@ -1,0 +1,32 @@
+{
+  "name": "dynamic-interview",
+  "version": "0.1.0",
+  "description": "Paced, multi-session interviews for understanding, planning, exploring, PoCs and debugging. Sets a goal and depth threshold up front, asks in small justified question sets, delegates fact-finding, keeps a decision ledger across sessions, and shows live progress in a pane.",
+  "author": {
+    "name": "RKPinata",
+    "email": "teukutiga@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "interview",
+    "requirements",
+    "planning",
+    "discovery",
+    "mod"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "interviews_dir": {
+      "type": "directory",
+      "title": "Interviews folder",
+      "description": "Where active interview drafts (interview.json, ledger.md) are kept. Outside your projects by default; survives plugin uninstall.",
+      "default": "~/.claude/interviews"
+    },
+    "auto_allow_writes": {
+      "type": "boolean",
+      "title": "Allow interview writes without asking",
+      "description": "Let Claude write interview files inside the interviews folder without a permission prompt each round. Your deny rules still apply.",
+      "default": true
+    }
+  }
+}

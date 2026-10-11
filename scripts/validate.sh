@@ -22,6 +22,9 @@ for dir in plugins/*/; do
 
   echo "==> $dir"
   claude plugin validate "$dir" --strict || status=1
+  if [[ -n "$(find "$dir" -name '*.test.ts' -o -name '*.test.tsx' | head -1)" ]]; then
+    claude plugin test "$dir" || status=1
+  fi
 
   [[ -f "$manifest" ]] || { fail "$dir: missing .claude-plugin/plugin.json"; continue; }
   [[ -f "$dir/CHANGELOG.md" ]] || fail "$dir: missing CHANGELOG.md"
