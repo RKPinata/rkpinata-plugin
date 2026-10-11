@@ -15,6 +15,7 @@ const INTERVIEW = {
   outcome: 'Phased plan',
   sufficiency: 'Every phase has a testable exit criterion',
   status: 'active',
+  commits: { policy: 'push', branch: 'interview/billing-retries' },
   session: 2,
   round: 5,
   threads: [
@@ -107,6 +108,13 @@ describe('interview.json parsing', () => {
     const interview = parseInterview('{"goal":"g","threads":[{"name":"A","status":"weird"}]}')
     expect(interview?.threads[0]).toEqual({ id: 'T1', name: 'A', status: 'open' })
     expect(interview?.status).toBe('active')
+    expect(interview?.commits).toBeUndefined()
+  })
+
+  test('reads the commit policy, dropping a branch for none', () => {
+    const none = parseInterview('{"goal":"g","commits":{"policy":"none","branch":"x"}}')
+    expect(none?.commits).toEqual({ policy: 'none' })
+    expect(parseInterview('{"goal":"g","commits":{"policy":"sometimes"}}')?.commits).toBeUndefined()
   })
 })
 
@@ -133,6 +141,7 @@ describe('progress display', () => {
       const pane = await $.ui.mount({ plugin: 'dynamic-interview', surface, ...PANE })
       expect(await pane.find({ text: /Idempotency/ })).toBeDefined()
       expect(await pane.find({ text: /key scope unclear/ })).toBeDefined()
+      expect(await pane.find({ text: /commit \+ push on interview\/billing-retries/ })).toBeDefined()
       await pane.unmount()
     }
   })

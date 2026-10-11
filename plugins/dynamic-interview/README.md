@@ -33,13 +33,15 @@ Paced, goal-anchored interviews that build shared understanding before acting. T
 
 ## Where interviews are stored
 
-The interview **doesn't touch your repository unless you choose a repo location**: no `.gitignore` edits and no commits. Claude checks the project's conventions, asks once while framing, and can remember your choice outside the repo.
+The interview **doesn't touch your repository unless you choose a repo location**: no `.gitignore` edits, and commits only as agreed for the goal. Claude checks the project's conventions, asks once while framing, and can remember your choice outside the repo.
 
 | Option | Path | Repo impact |
 |---|---|---|
 | **Personal** (default) | `~/.claude/interviews/<project-key>/<slug>/` | none |
 | **Local, untracked** | `.interviews/<slug>/`, excluded through `.git/info/exclude` | an untracked folder only |
 | **Shared** | the project's planning-docs folder, or `docs/interviews/<slug>/` | files you commit yourself |
+
+**Commits** are agreed **once per goal**: `none` (you save work yourself), `local` (commit at save points) or `push` (commit and push), plus the branch. Save points are after framing, at checkpoints, at the exit gate and at session end. The policy covers the outcome and any code written, and the interview files only when they're in the Shared location. The pane shows the policy as "Saving: …".
 
 `<project-key>` is the project's absolute path with `/` replaced by `-`. Personal storage stays on the machine, so in a cloud or throwaway environment pick Shared if the interview must survive.
 

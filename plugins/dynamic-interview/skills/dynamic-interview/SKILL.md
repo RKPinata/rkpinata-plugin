@@ -35,6 +35,7 @@ Don't ask a single content question before these are agreed. Propose them yourse
 - **Depth threshold**: the level of detail you stop at. State it in the terms of the subject, e.g. "service boundaries and data ownership, not function signatures" or "enough to pick a library, not to configure it". This is the yardstick for "too deep".
 - **Sufficiency test**: one sentence of the form "We have enough when ___", e.g. "...when every phase has an owner-less, testable exit criterion" or "...when I can explain the retry path back and you agree."
 - **Continuity**: where the ledger lives, in the user's personal folder, untracked in the repo or shared in the repo (see Continuity). Ask this here, once, unless a remembered choice exists.
+- **Saving work**: how commits are handled for this goal (see Commit policy). **Always ask, once per goal**, even if an earlier goal on the same project had a policy. Combine it with the Continuity question so Frame stays short.
 
 Write `interview.json` and `ledger.md` as soon as Frame is agreed.
 
@@ -127,7 +128,7 @@ The interview's state lives in a directory, `<root>/<slug>/`:
 
 - `<project-key>` is the project's absolute path with every `/` (and `\`, `:`) replaced by `-`, e.g. `/home/ana/shop` → `-home-ana-shop`. It's stable and needs no repo change.
 - **Never edit `.gitignore`** or any other tracked file to hide the interview. To exclude, append `.interviews/` to `.git/info/exclude`, which is local and never committed. If that file isn't writable or the project isn't a git repo, use Personal instead.
-- **Never commit** interview files yourself. Commits happen only when the user asks, and only for the Shared option.
+- **Commits** follow the commit policy agreed for this goal (below), never your own judgment.
 - The **outcome** artifact (the plan, the explanation) follows the same rule: it goes in the interview folder unless the user names a path in the repo.
 - If the user wants the choice remembered, record it in the Personal folder as `~/.claude/interviews/<project-key>/location` (one line: `personal`, `local` or `shared:<path>`). Read that file before asking in later interviews on the same project. It lives outside the repo, so remembering is never disruptive.
 - Personal storage stays on this machine. In a cloud or throwaway environment it disappears with the environment, so say so when you recommend it there.
@@ -140,6 +141,26 @@ The interview's state lives in a directory, `<root>/<slug>/`:
 - before the session ends or the context is likely to compact: set `next` to the exact next round, so the next session starts cold without re-asking.
 
 Don't write a ledger entry for a round that changed nothing.
+
+### Commit policy
+
+Ask **once per goal**, during Frame, so you know how to save work for the rest of the interview and the work that follows it. Don't re-ask on every save, and don't assume a policy from an earlier goal. Ask again only when the goal itself changes (on resume, or when the user redefines it). A spun-off sub-interview inherits its parent's policy; say so in one line, and the user can override it.
+
+Offer these, recommending one based on the storage location and the project's conventions:
+
+| Policy | What you do |
+|---|---|
+| `none` | Never commit or push. The user saves work their own way. Mention uncommitted changes at session end. |
+| `local` | Commit at save points. Never push. |
+| `push` | Commit at save points and push. |
+
+With `local` or `push`, also agree:
+- **Branch**: the current one, or a new one (suggest `interview/<slug>`, or the project's branch naming convention). Never commit to the default branch without explicit agreement.
+- **What's covered**: interview files (only when stored in the Shared location; Personal and local-untracked files are never committed), the outcome artifact, and code written in `build` or `poc` mode.
+
+**Save points**: after Frame, at each checkpoint, when the exit gate passes, and at session end. One commit per save point, with a message in the project's convention (e.g. Conventional Commits if the history uses them) that names the interview and round: `docs(interview): billing-retries s2r5, decide retry cap`.
+
+Record the policy in `interview.json` (`commits`) and the ledger header. Before every commit, check the policy still matches what you're about to do. A project rule (`CLAUDE.md`, `CONTRIBUTING`) or an explicit instruction from the user always wins; if one conflicts with the agreed policy, say so and ask.
 
 ## Presentation
 

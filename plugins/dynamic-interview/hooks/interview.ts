@@ -1,4 +1,4 @@
-import type { Interview, Thread, ThreadStatus } from '../types'
+import type { CommitPolicy, Interview, Thread, ThreadStatus } from '../types'
 
 const STATUSES: ThreadStatus[] = ['open', 'partial', 'enough', 'parked', 'spun-off']
 const FILE = 'interview.json'
@@ -31,6 +31,24 @@ const toThread = (value: unknown, index: number): Thread => {
   return thread
 }
 
+const toCommits = (value: unknown): CommitPolicy | undefined => {
+  const raw = record(value)
+  if (raw.policy !== 'none' && raw.policy !== 'local' && raw.policy !== 'push') return undefined
+
+  return typeof raw.branch === 'string' && raw.policy !== 'none'
+    ? { policy: raw.policy, branch: raw.branch }
+    : { policy: raw.policy }
+}
+
+/** How work is saved for this goal, in a few words. */
+export const describeCommits = (commits: CommitPolicy | undefined): string => {
+  if (commits === undefined) return 'not agreed yet'
+  if (commits.policy === 'none') return 'no commits (you save work)'
+  const how = commits.policy === 'push' ? 'commit + push' : 'commit locally'
+
+  return commits.branch === undefined ? how : `${how} on ${commits.branch}`
+}
+
 /** Reads an interview.json text leniently; undefined when it is not one. */
 export const parseInterview = (source: string): Interview | undefined => {
   let json: unknown
@@ -45,8 +63,10 @@ export const parseInterview = (source: string): Interview | undefined => {
   const counts = record(raw.counts)
   const status = raw.status === 'paused' || raw.status === 'done' ? raw.status : 'active'
   const slug = text(raw.slug, 'interview')
+  const commits = toCommits(raw.commits)
 
   return {
+    ...(commits === undefined ? {} : { commits }),
     slug,
     title: text(raw.title, slug),
     goal: text(raw.goal),

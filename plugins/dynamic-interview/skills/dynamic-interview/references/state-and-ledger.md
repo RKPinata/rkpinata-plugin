@@ -17,6 +17,7 @@ Keep it small. It holds progress, not content, and the content goes in the ledge
   "depth": "Service boundaries and data ownership; not function signatures",
   "sufficiency": "Every phase has a testable exit criterion",
   "status": "active",
+  "commits": { "policy": "local", "branch": "interview/billing-retries" },
   "session": 2,
   "round": 5,
   "threads": [
@@ -36,6 +37,8 @@ Keep it small. It holds progress, not content, and the content goes in the ledge
 | `schema` | always `1` |
 | `mode` | `understand` · `plan` · `explore` · `poc` · `debug` · `build` |
 | `status` | `active` · `paused` · `done` |
+| `commits.policy` | `none` · `local` · `push`, agreed once per goal (see Commit policy in SKILL.md) |
+| `commits.branch` | branch for `local` / `push`; omit for `none` |
 | `session` | starts at 1; +1 on each resume |
 | `round` | question sets asked so far, across sessions |
 | `threads[].status` | `open` · `partial` · `enough` · `parked` · `spun-off` |
@@ -58,6 +61,7 @@ Append-mostly. Number the entries so they can be referenced (`D4`, `F2`, `Q3`). 
 - **Depth:** Service boundaries and data ownership; not function signatures
 - **Enough when:** Every phase has a testable exit criterion
 - **Ledger:** personal (~/.claude/interviews/-home-ana-shop/billing-retries/)
+- **Saving:** `local` on `interview/billing-retries`, covering the plan doc (agreed s1)
 - **Skills:** superpowers:brainstorming, merged for T5 (chosen session 1)
 
 ## Decisions

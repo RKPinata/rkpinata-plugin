@@ -8,6 +8,8 @@ export type Thread = {
   link?: string
 }
 
+export type CommitPolicy = { policy: 'none' | 'local' | 'push'; branch?: string }
+
 export type Interview = {
   slug: string
   title: string
@@ -16,6 +18,8 @@ export type Interview = {
   outcome: string
   sufficiency: string
   status: 'active' | 'paused' | 'done'
+  /** Agreed once per goal; undefined until it is. */
+  commits?: CommitPolicy
   session: number
   round: number
   threads: Thread[]

@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Loaded, ThreadStatus } from '../types'
-import { isInterviewFile, parseInterview, progress, ratioBar, summary, threadBar } from './interview'
+import { describeCommits, isInterviewFile, parseInterview, progress, ratioBar, summary, threadBar } from './interview'
 
 const PANE = 'interview-map'
 
@@ -182,6 +182,7 @@ export const register: Register = on => {
         {interview.goal !== '' && <Text>Goal: {interview.goal}</Text>}
         {interview.outcome !== '' && <Text>Outcome: {interview.outcome}</Text>}
         {interview.sufficiency !== '' && <Text dimColor>Enough when: {interview.sufficiency}</Text>}
+        <Text dimColor>Saving: {describeCommits(interview.commits)}</Text>
         <Text> </Text>
         {interview.threads.length === 0 && <Text dimColor>No threads mapped yet.</Text>}
         {interview.threads.map(thread => (
