@@ -136,7 +136,7 @@ Shared understanding depends on how state is shown. Pick the lightest form that 
 - **Terminal (default)**: an ASCII thread map with progress bars. Show it after Frame, at checkpoints and on resume.
 - **Docs**: Mermaid diagrams inside the ledger or the outcome doc for flows, dependencies between threads, or system shape.
 - **Interactive**: when the subject has many interacting parts, such as large dependency graphs, option matrices or timelines, offer an HTML artifact. Offer it; don't build it unasked.
-- **Live progress**: if the `dynamic-interview` mod is loaded, it draws the map from `interview.json` in a pane (`/interview-map`) and a status band above the prompt. Keep `interview.json` current and the display follows. Without the mod, the ASCII map is the progress view.
+- **Live progress**: if the `dynamic-interview` mod is loaded, it draws the map from `interview.json` in a status band above the prompt and a pane (`/interview-map`). The user hides or shows it with `/interview-progress`. Keep `interview.json` current and the display follows. Without the mod, the ASCII map is the progress view.
 
 ## Exit gate
 

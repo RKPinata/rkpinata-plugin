@@ -53,4 +53,4 @@ When the map has more than about 10 threads, the dependencies cross, or the user
 
 ## Live pane (mod)
 
-If the `dynamic-interview` mod is loaded, `/interview-map` opens a pane drawn from `interview.json`, and a one-line band above the prompt shows the slug, round, progress and next step. It refreshes whenever Claude reads or writes an `interview.json`, so keep that file current. The ASCII map is still worth printing at checkpoints, because the pane may be closed or unsupported.
+If the `dynamic-interview` mod is loaded, a band above the prompt shows the slug, round, progress and next step, and `/interview-map` opens or closes a pane drawn from `interview.json`. The user can hide or show all of it with `/interview-progress` (or the band's Hide button); respect that and don't re-open the pane after they hide it. It refreshes whenever Claude reads or writes an `interview.json`, so keep that file current. The ASCII map is still worth printing at checkpoints, because the pane may be closed or unsupported.

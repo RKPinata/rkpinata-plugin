@@ -10,4 +10,5 @@ This plugin follows [Semantic Versioning](https://semver.org/).
 - `dynamic-interview` skill: frame (goal, mode, outcome, depth threshold, sufficiency test), thread map, paced question sets, depth control with spin-off sub-interviews, delegation with trust levels and verify-now/later, deference to specialized skills, exit gate per mode.
 - Multi-session continuity through `interview.json` and `ledger.md`, with resume protocol.
 - Presentation templates: ASCII thread map, Mermaid, interactive artifact guidance.
-- Progress mod: `/interview-map` pane and a band above the prompt, driven by `interview.json`.
+- Progress mod: a band above the prompt and an `/interview-map` pane (toggles open/closed), driven by `interview.json`.
+- `/interview-progress [show|hide]` and the band's Hide button show or hide all progress; the choice persists across sessions.

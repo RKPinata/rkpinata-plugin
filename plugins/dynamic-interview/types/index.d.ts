@@ -27,6 +27,6 @@ export type Loaded = { path: string; interview: Interview }
 
 declare module 'claude-code' {
   interface PluginState {
-    'dynamic-interview': { current: Loaded | null; isBandHidden: boolean }
+    'dynamic-interview': { current: Loaded | null; isHidden: boolean }
   }
 }

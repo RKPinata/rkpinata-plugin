@@ -24,8 +24,9 @@ Paced, goal-anchored interviews that build shared understanding before acting. T
 
 - `skills/dynamic-interview` is the interview method. `references/` holds the `interview.json` / `ledger.md` formats and the presentation templates (ASCII, Mermaid, interactive).
 - `hooks/register.tsx` is a **mod** (a function-hooks module) for live progress:
-  - `/interview-map` opens a pane with the thread map, counts and next step;
   - a band above the prompt shows `◆ slug · mode · s2 r5 · ████░░░░ 1/3 threads · 7 decisions · 3 open` and the next step, with **Map** and **Hide** buttons;
+  - `/interview-map` opens or closes a pane with the full thread map, counts and next step;
+  - `/interview-progress [show|hide]` shows or hides all progress (band and pane); with no argument it toggles. Hiding is remembered across sessions until you show it again;
   - it refreshes whenever Claude reads or writes an `interview.json`, and a new session in the same folder restores the last interview.
 
   The mod only reads files. If your Claude Code build doesn't load mods, the skill still works and prints the ASCII map instead.

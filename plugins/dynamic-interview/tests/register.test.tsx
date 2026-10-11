@@ -58,7 +58,19 @@ const session = (on: On, files: Record<string, string>, stored: Record<string, u
   mock.store(on, stored)
   on('session.cwd', () => ({ value: CWD }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
-  on('ui.open', () => ({ value: { isPlaced: true as const } }))
+  const panes = new Set<string>()
+  on('ui.open', (_$, e) => {
+    panes.add(e.id)
+
+    return { value: { isPlaced: true as const } }
+  })
+  on('ui.close', (_$, e) => {
+    panes.delete(e.id)
+
+    return { value: undefined }
+  })
+  on('ui.panes', () => ({ value: [...panes].map(id => ({ id, title: id })) as never }))
+  on('ui.toast', () => ({ value: undefined }))
   on('fs.read', (_$, e) => {
     const text = files[e.path]
     if (text === undefined) return { deny: `ENOENT ${e.path}` }
@@ -75,6 +87,8 @@ const session = (on: On, files: Record<string, string>, stored: Record<string, u
   on('tool.call', (_$, e) =>
     ({ result: {}, isError: String((e as { file_path?: unknown }).file_path).startsWith('/broken/') }) as never)
   on('session.start', () => ({ cwd: CWD }) as never)
+
+  return { panes }
 }
 
 describe('interview.json parsing', () => {
@@ -121,6 +135,47 @@ describe('progress display', () => {
       expect(await pane.find({ text: /key scope unclear/ })).toBeDefined()
       await pane.unmount()
     }
+  })
+
+  test('/interview-progress toggles, and show/hide set it', async ($, on) => {
+    session(on, { [PATH]: JSON.stringify(INTERVIEW) })
+    await $.session.start({ cwd: CWD, surface: 'terminal', isInteractive: true } as never)
+    await $.tool.call({ tool: 'Read', file_path: PATH })
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+
+    await $.command.run({ command: 'interview-progress', args: '' } as never)
+    expect(await band.find({ key: 'map' })).toBeUndefined()
+    await $.command.run({ command: 'interview-progress', args: '' } as never)
+    expect(await band.find({ key: 'map' })).toBeDefined()
+    await $.command.run({ command: 'interview-progress', args: 'hide' } as never)
+    await $.command.run({ command: 'interview-progress', args: 'hide' } as never)
+    expect(await band.find({ key: 'map' })).toBeUndefined()
+    await $.command.run({ command: 'interview-progress', args: 'show' } as never)
+    expect(await band.find({ key: 'map' })).toBeDefined()
+  })
+
+  test('hiding closes the map pane, and /interview-map toggles it', async ($, on) => {
+    const { panes } = session(on, { [PATH]: JSON.stringify(INTERVIEW) })
+    await $.session.start({ cwd: CWD, surface: 'terminal', isInteractive: true } as never)
+    await $.tool.call({ tool: 'Read', file_path: PATH })
+    const isOpen = async () => panes.has('interview-map')
+
+    await $.command.run({ command: 'interview-map', args: '' } as never)
+    expect(await isOpen()).toBe(true)
+    await $.command.run({ command: 'interview-progress', args: 'hide' } as never)
+    expect(await isOpen()).toBe(false)
+    await $.command.run({ command: 'interview-map', args: '' } as never)
+    expect(await isOpen()).toBe(true)
+    await $.command.run({ command: 'interview-map', args: '' } as never)
+    expect(await isOpen()).toBe(false)
+  })
+
+  test('hidden stays hidden in a new session', async ($, on) => {
+    session(on, { [PATH]: JSON.stringify(INTERVIEW) }, { [`last:${CWD}`]: PATH, isHidden: true })
+    await $.session.start({ cwd: CWD, surface: 'terminal', isInteractive: true } as never)
+
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+    expect(await band.find({ key: 'map' })).toBeUndefined()
   })
 
   test('Hide removes the band until the map command', async ($, on) => {

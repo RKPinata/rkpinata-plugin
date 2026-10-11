@@ -7,7 +7,8 @@ import { isInterviewFile, parseInterview, progress, ratioBar, summary, threadBar
 const PANE = 'interview-map'
 
 const current = atom({ plugin: 'dynamic-interview', key: 'current' } as const, null)
-const isBandHidden = atom({ plugin: 'dynamic-interview', key: 'isBandHidden' } as const, false)
+const isHidden = atom({ plugin: 'dynamic-interview', key: 'isHidden' } as const, false)
+const HIDDEN_KEY = 'isHidden'
 
 const STATUS_COLOR: Record<ThreadStatus, string | undefined> = {
   enough: 'green',
@@ -33,17 +34,44 @@ const load = async ($: EngineInterface, path: string): Promise<boolean> => {
 }
 
 const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Interview' })
+const isPaneOpen = async ($: EngineInterface) => (await $.ui.panes()).some(pane => pane.id === PANE)
+
+/** Hides or shows all progress (band and pane), remembered across sessions. */
+const setHidden = async ($: EngineInterface, hidden: boolean) => {
+  await update($, isHidden, () => hidden)
+  await $.store.set(HIDDEN_KEY, hidden)
+  if (hidden) await $.ui.close({ id: PANE })
+}
+
+const HIDDEN_HINT = 'Interview progress hidden. /interview-progress shows it again.'
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'interview-map',
-      description: 'Show the current dynamic interview\'s thread map and progress in a pane',
+      name: 'interview-progress',
+      description: 'Show or hide the interview progress band and pane',
+      argumentHint: '[show|hide]',
     })
+    await $.command.register({
+      name: 'interview-map',
+      description: 'Open or close the interview thread map pane',
+    })
+    if ((await $.store.get(HIDDEN_KEY)) === true) await update($, isHidden, () => true)
     const last = await $.store.get(await storeKey($))
     if (typeof last === 'string') await load($, last)
 
     return next(e)
+  })
+
+  on('command.run', { command: 'interview-progress' }, async ($, e) => {
+    const asked = e.args.trim().toLowerCase()
+    if (asked !== '' && asked !== 'show' && asked !== 'hide') {
+      return { text: 'Usage: /interview-progress [show|hide]; with no argument it toggles.' }
+    }
+    const hidden = asked === '' ? !(await read($, isHidden)) : asked === 'hide'
+    await setHidden($, hidden)
+
+    return { text: hidden ? HIDDEN_HINT : 'Interview progress shown above the prompt; /interview-map opens the full map.' }
   })
 
   on('command.run', { command: 'interview-map' }, async $ => {
@@ -51,7 +79,12 @@ export const register: Register = on => {
     if (loaded === null) {
       return { text: 'No interview yet. Start one with the dynamic-interview skill; the map appears once it writes interview.json.' }
     }
-    await update($, isBandHidden, () => false)
+    if (await isPaneOpen($)) {
+      await $.ui.close({ id: PANE })
+
+      return { text: 'Interview map closed.' }
+    }
+    await setHidden($, false)
     await openPane($)
 
     return { text: `Interview map opened for ${loaded.interview.title}.` }
@@ -78,7 +111,7 @@ export const register: Register = on => {
       e.props.hasSurvey ||
       loaded === null ||
       loaded.interview.status === 'done' ||
-      (await read($, isBandHidden))
+      (await read($, isHidden))
 
     if (isQuiet) return next(e)
 
@@ -108,7 +141,15 @@ export const register: Register = on => {
           )}
           <Button key="map" label="Map" plain onPress={() => openPane($)} />
           <Text> </Text>
-          <Button key="hide" label="Hide" plain onPress={() => update($, isBandHidden, () => true)} />
+          <Button
+            key="hide"
+            label="Hide"
+            plain
+            onPress={async () => {
+              await setHidden($, true)
+              $.ui.toast(HIDDEN_HINT)
+            }}
+          />
         </Box>
       </Box>
     )
