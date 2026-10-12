@@ -1,6 +1,6 @@
 {
   "name": "dynamic-interview",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Paced, multi-session interviews for understanding, planning, exploring, PoCs and debugging. Sets a goal and depth threshold up front, asks in small justified question sets, delegates fact-finding, keeps a decision ledger across sessions, and shows live progress in a pane.",
   "author": {
     "name": "RKPinata",
@@ -18,8 +18,8 @@
   "userConfig": {
     "interviews_dir": {
       "type": "directory",
-      "title": "Interviews folder",
-      "description": "Where active interview drafts (interview.json, ledger.md) are kept. Outside your projects by default; survives plugin uninstall.",
+      "title": "Interviews folder (empty = ~/.claude/interviews)",
+      "description": "Folder for interview drafts (interview.json, ledger.md). The default sits outside your projects and survives plugin uninstall.",
       "default": "~/.claude/interviews"
     },
     "auto_allow_writes": {

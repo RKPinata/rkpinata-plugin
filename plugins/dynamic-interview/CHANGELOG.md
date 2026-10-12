@@ -3,6 +3,12 @@
 All notable changes to the `dynamic-interview` plugin are documented here.
 This plugin follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-10-12
+
+### Changed
+
+- The "Interviews folder" title in the install dialog shows that an empty field uses `~/.claude/interviews`.
+
 ## [0.1.0] - 2026-10-11
 
 ### Added
