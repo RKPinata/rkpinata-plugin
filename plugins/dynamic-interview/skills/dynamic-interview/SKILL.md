@@ -13,7 +13,7 @@ An interview exists to reach a **shared understanding that is sufficient for a s
 - **Drowning**: you send ten questions at once with no reason given, and the user loses the thread.
 - **Amnesia**: decisions live only in context and are lost at compaction or between sessions.
 
-Work through the phases below. They loop: Frame once, then repeat Map → Round → Record until the exit gate passes or the session ends.
+Work through the phases below. They loop: Frame once, then repeat Map → Question → Record until the exit gate passes or the session ends.
 
 ## Where the files live
 
@@ -32,7 +32,7 @@ If the user names an interview, or asks to resume or continue one, look in `<int
 2. Give a recap of at most 5 lines: goal, outcome, what's decided, what's open, and where the last session stopped (its `next`).
 3. Show the map (see Presentation).
 4. Ask one question: "Is the goal still right, and do we continue with `<next>`?" Goals drift between sessions, so confirm before you build on them.
-5. Increment `session`, add a session entry to the ledger, and write both files.
+5. Increment `session`, add a session entry to the ledger, and write both files with `Write`.
 
 When starting fresh, glance at the project's other interviews. If any are finished and more than a week old, mention it in one line ("2 finished interviews could be archived; `/interview-cleanup`"), then move on.
 
@@ -50,7 +50,7 @@ Don't ask a single content question before the frame is agreed. Propose it yours
 - **Enough when** is the sufficiency test.
 - **Storage** is a statement, not a question: name the draft folder. Ask only in a cloud or ephemeral session (see `references/storage.md`), where the drafts would not survive.
 
-Where the outcome finally goes, and how commits are handled, are decided at the exit gate, not here. Once the user confirms the frame, write `interview.json` and `ledger.md`.
+Where the outcome finally goes, and how commits are handled, are decided at the exit gate, not here. Once the user confirms the frame, write `interview.json` and `ledger.md` with `Write`, so the progress display appears.
 
 ## Phase 2: Map the threads
 
@@ -62,44 +62,70 @@ Break the subject into **threads**, the areas the outcome depends on, typically 
 
 Order threads by what unblocks the most, so the decisions that others depend on come first. Progress = `enough` ÷ (all threads − `parked` − `spun-off`). Show the map after framing and whenever it changes shape.
 
-## Phase 3: Rounds (question sets)
+## Phase 3: Questions
 
-Each round is **one set of 2–4 related questions**, usually from one thread. Before the questions, say in a line or two:
+Ask **one question per turn**. A round is one question. Keep a queue of the questions you plan to ask, ordered by what unblocks the most, and ask from its head.
 
-- **Why this set, why now**: which thread it serves and what decision it unblocks.
-- **What happens next**: e.g. "After this I can draft the data-ownership section."
+Each question has this shape:
 
-For each question:
+```
+**Q4 · T2 Idempotency** (2 of 3 for this thread)
+<At most 3 lines: what is known, and what the answer unblocks.>
+
+**Question:** Is the idempotency key per charge or per invoice?
+
+**A (recommended):** Per charge.
+**Why:** <the reason, citing what you read or were told>
+**Cost:** <what this choice gives up>
+
+**B:** Per invoice.
+**Cost:** <what this choice gives up>
+
+**C:** <a third real option>
+**Cost:** <…>
+
+Reply with a letter, or give your own answer.
+```
 
 - Ask for one decision or fact. Split compound questions.
-- Offer your **recommended answer** and the reason for it when you have one, so the user can confirm instead of compose. Use the `AskUserQuestion` tool when the options are discrete, with the recommended option first.
+- Give **at least 3 real options**, lettered, your recommendation first. Each option states its cost. A yes/no question becomes 3 variants (yes in full, yes in part, no).
+- Always recommend one option and give the reason. When nothing tips it, say so, and name the fact that would decide it.
+- When an option describes behaviour, show it as a short example of the exchange or the screen. Users cannot weigh behaviour they cannot picture.
+- Ask in prose. `AskUserQuestion` option cards can't carry the context, the reason and the costs.
 
 Pacing rules:
 
-- Never send more than one set per turn, and never more than 4 questions in a set.
-- If an answer opens something new, don't chase it inside the same set. Note it as a candidate thread and place it at the end of the round.
-- Every 3 rounds, or when the user seems lost, give a **checkpoint**: show the map, list what was decided since the last checkpoint, and ask "Still aligned? Anything I've got wrong?"
-- If the user's answers get short, or they say "just decide", propose the remaining decisions in bulk as defaults for them to veto, or check whether the threshold is set too deep.
+- If an answer opens something new, don't chase it. Add it to the queue, or note it as a candidate thread.
+- Give a **checkpoint** when a thread reaches `enough`, is parked or is spun off, after 6 questions in a row with no thread closing, and when the user seems lost. Read back the decisions since the last checkpoint and ask "Still aligned? Anything I've got wrong?" The pane shows the map, so show it in the reply only where the pane doesn't draw (see Presentation).
+- If the user says "just decide", or their answers get short, decide the minor questions yourself and tag each one `default` in the ledger. Read them back at the next checkpoint. A question that changes the outcome still goes to the user, as one line with your pick, for a double check.
 
-## Record every round
+## Record in batches
 
-After **every** round, in one step:
+Write `ledger.md` and `interview.json` together:
 
-- Append what changed to `ledger.md`: decisions `D<n>`, facts `F<n>` with trust levels, open questions `Q<n>`, to-verify entries. Formats are in `references/state-and-ledger.md`.
-- Rewrite `interview.json` whole with `Write`: thread statuses, `round` + 1, and **`next`**, the exact next step, written so a cold session could start it.
+- at every checkpoint;
+- when the session pauses or ends;
+- when the user says "save";
+- before a long task, such as a subagent sweep.
 
-A round that changed nothing still gets a new `next`. The progress display counts decisions and open questions from `ledger.md` itself, so there are no counts to keep by hand. Write immediately when the user states a decision unprompted.
+Each write tool call shows a diff between the user's answer and your next question, so batching keeps the conversation readable. Up to 6 answers live only in the conversation between writes. Hold them there, and flush them on any of the triggers above.
+
+- Append to `ledger.md`: decisions `D<n>`, facts `F<n>` with trust levels, open questions `Q<n>`, to-verify entries. Formats are in `references/state-and-ledger.md`.
+- Rewrite `interview.json` whole with `Write`: thread statuses, `round` (questions asked so far), the `queue` with the question now on screen first, and **`next`**, the exact next step, written so a cold session could start it.
+- Never write these files from Bash. The progress display reloads only on `Write` and `Edit`.
+
+The progress display counts decisions and open questions from `ledger.md` itself, so there are no counts to keep by hand.
 
 ## Depth control
 
-After every round, judge each touched thread against the depth threshold.
+After every answer, judge its thread against the depth threshold.
 
 **Going too deep** if any of these hold:
 - the answers are below the threshold (implementation detail in a planning interview);
-- the thread has had 2+ rounds without changing a decision in the outcome;
+- the thread has had 4+ questions without changing a decision in the outcome;
 - a sub-topic has its own goal, unknowns and stakeholders.
 
-Then propose one of: stop the thread (mark it `enough`), **park** it (it's needed later, not now), or **spin it off** into a separate interview with its own slug, goal and threshold, linked from both ledgers. Spin off when the sub-topic needs its own exploration or brainstorming, or would take more than about 2 rounds. A sub-interview can run in a later session.
+Then propose one of: stop the thread (mark it `enough`), **park** it (it's needed later, not now), or **spin it off** into a separate interview with its own slug, goal and threshold, linked from both ledgers. Spin off when the sub-topic needs its own exploration or brainstorming, or would take more than about 6 questions. A sub-interview can run in a later session.
 
 **Too shallow** if any of these hold: you couldn't write the outcome's section for this thread without guessing; a decision rests on an unverified assumption with high cost if wrong; or the user hedges ("probably", "I think", "for now"). Then go one level deeper, or record the assumption explicitly with a verification plan.
 
@@ -127,7 +153,7 @@ Note the risk of leaving it unknown ("if wrong, phase 2 is redone") in the ledge
 Specialized skills may cover part of the interview, such as a brainstorming, debugging, planning, spec-writing or domain skill. When one is available and fits the mode or a thread:
 
 1. Name it and what it would add.
-2. Recommend one option, with the reason: **hand off** (it owns this; the interview resumes after, and its output goes in the ledger), **merge** (use its method inside this interview's rounds and ledger), or **ignore** (it doesn't fit).
+2. Recommend one option, with the reason: **hand off** (it owns this; the interview resumes after, and its output goes in the ledger), **merge** (use its method inside this interview's questions and ledger), or **ignore** (it doesn't fit).
 3. Let the user choose, and record the choice in the ledger so later sessions don't ask again.
 
 Never silently run two interview-style skills at once.
@@ -136,10 +162,10 @@ Never silently run two interview-style skills at once.
 
 Pick the lightest form that carries the state, using `references/presentation.md` for templates:
 
-- **Terminal (default)**: an ASCII thread map with progress bars. Show it after Frame, at checkpoints and on resume.
+- **Terminal (default)**: an ASCII thread map with progress bars. Show it after Frame and on resume, and at checkpoints where the live pane doesn't draw.
 - **Docs**: Mermaid diagrams inside the ledger or the outcome for flows, dependencies between threads, or system shape.
 - **Interactive**: for many interacting parts (large dependency graphs, option matrices, timelines), offer an HTML artifact. Offer it; don't build it unasked.
-- **Live progress**: in the terminal and the desktop app, the plugin's mod draws a band above the prompt and an `/interview-map` pane from `interview.json`. The user hides or shows it with `/interview-progress`; don't re-open it after they hide it. It doesn't draw everywhere (VS Code, cloud sessions, `claude -p`), so the ASCII map at checkpoints is still the baseline.
+- **Live progress**: in the terminal and the desktop app, the plugin's mod draws two views of the interview. The band above the prompt is one line: progress, the question at the head of `queue`, and an Expand/Collapse button. The pane (`/interview-map`) shows the threads, the question now, the rest of the queue, and the settled decisions from `ledger.md`. The user hides both with the pane's Hide button or `/interview-progress`; don't re-open them after they hide them. Neither draws in VS Code, cloud sessions or `claude -p`, so there the ASCII map at checkpoints is the baseline.
 
 ## Exit gate
 
@@ -160,9 +186,9 @@ If the session ends before the gate, set `status` to `paused` and make sure `nex
 
 - Asking content questions before the frame is confirmed, or turning the frame into a questionnaire.
 - Asking the user for something you could read from the code or docs.
-- More than 4 questions in a set, or questions without a stated reason.
+- More than one question per turn, fewer than 3 options, or a question with no recommendation and reason.
 - Treating "I could start coding now" as the exit gate.
 - Chasing a fascinating sub-topic instead of spinning it off.
-- Keeping decisions only in conversation context, or skipping the per-round write.
+- Holding answers past a checkpoint, a pause or a long task without writing them.
 - Re-asking something the ledger already answers.
 - Writing into the user's repository before the outcome is promoted there.

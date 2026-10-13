@@ -1,6 +1,6 @@
 # State and ledger formats
 
-An interview lives in `<interviews folder>/<project-key>/<slug>/` (see `storage.md`; `<slug>` is kebab-case). It holds two files: `interview.json` for machines and `ledger.md` for people. Update both after every round.
+An interview lives in `<interviews folder>/<project-key>/<slug>/` (see `storage.md`; `<slug>` is kebab-case). It holds two files: `interview.json` for machines and `ledger.md` for people. Update both together, at the moments SKILL.md lists under *Record in batches*.
 
 ## interview.json
 
@@ -27,6 +27,10 @@ Keep it small. It holds progress, not content, and the content goes in the ledge
     { "id": "T4", "name": "Alerting", "status": "parked", "note": "after phase 1" },
     { "id": "T5", "name": "Rollout", "status": "open" }
   ],
+  "queue": [
+    { "id": "Q2", "thread": "T2", "text": "Is the idempotency key per charge or per invoice?", "asked": true },
+    { "id": "Q4", "thread": "T5", "text": "Who flips the rollout flag?" }
+  ],
   "next": "Round 6: idempotency key scope (T2), 3 questions"
 }
 ```
@@ -41,10 +45,11 @@ Keep it small. It holds progress, not content, and the content goes in the ledge
 | `promoted` | set at promotion: `{ "target", "state", "ref"? }`, where `state` is `pending` · `written` · `committed` · `pushed` · `published`; see `storage.md` |
 | `snoozedUntil` | `YYYY-MM-DD`, written by the cleanup pane's Keep; leave it alone |
 | `session` | starts at 1; +1 on each resume |
-| `round` | question sets asked so far, across sessions |
+| `round` | questions asked so far, across sessions |
 | `threads[].status` | `open` · `partial` · `enough` · `parked` · `spun-off` |
 | `threads[].note` | optional, ≤ 60 chars: why parked, what's missing |
 | `threads[].link` | optional: path to a spun-off interview's directory |
+| `queue` | questions in the order they will be asked. The first is the one on screen now; `asked: true` marks one asked and not yet answered. The band and pane read it; with none, they show `next` |
 | `next` | the exact next step, written so a cold session can start it |
 
 ## ledger.md
@@ -65,6 +70,7 @@ Append-mostly. Number the entries so they can be referenced (`D4`, `F2`, `Q3`). 
 - **D1** (T1, s1r2) Retries use exponential backoff capped at 24h. *Why:* matches card network guidance.
 - ~~**D2** (T1, s1r2) Max 3 attempts.~~ → superseded by D6
 - **D6** (T1, s2r4) Max 5 attempts; the 5th only for soft declines.
+- **D7** (T5, s2r9) `default` Roll out by region. *Why:* the user said "just decide"; read back at the checkpoint.
 
 ## Facts
 - **F1** `verified`: charges are written by `billing/charge.ts` only (read s1).
@@ -84,7 +90,7 @@ Append-mostly. Number the entries so they can be referenced (`D4`, `F2`, `Q3`). 
 
 ## Sessions
 - **s1** (2026-10-11) Framed; T1 enough; spun off T3. Stopped before T2.
-- **s2** (2026-10-12) D6 revised retry cap; F2 delegated. Next: round 6, T2.
+- **s2** (2026-10-12) D6 revised retry cap; F2 delegated. Next: Q2, T2.
 ```
 
 The progress display counts the live `- **D…**` and `- **Q…**` lines and the entries under `## To verify`, so keep those shapes exactly: a struck entry starts `- ~~`.

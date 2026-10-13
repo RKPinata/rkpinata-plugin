@@ -38,7 +38,7 @@
     {
       "name": "dynamic-interview",
       "source": "./plugins/dynamic-interview",
-      "description": "Paced, multi-session interviews for understanding, planning, exploring, PoCs and debugging. Sets a goal and depth threshold up front, asks in small justified question sets, delegates fact-finding, keeps a decision ledger across sessions, and shows live progress in a pane.",
+      "description": "Paced, multi-session interviews for understanding, planning, exploring, PoCs and debugging. Sets a goal and depth threshold up front, asks one question at a time with options and a recommended answer, delegates fact-finding, keeps a decision ledger across sessions, and shows live progress in a pane.",
       "author": {
         "name": "RKPinata",
         "email": "teukutiga@gmail.com"

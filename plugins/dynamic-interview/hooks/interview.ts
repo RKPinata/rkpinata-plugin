@@ -1,4 +1,4 @@
-import type { CommitPolicy, Interview, LedgerCounts, Promotion, Thread, ThreadStatus } from '../types'
+import type { CommitPolicy, Decision, Interview, LedgerCounts, Promotion, QueueItem, Thread, ThreadStatus } from '../types'
 
 const STATUSES: ThreadStatus[] = ['open', 'partial', 'enough', 'parked', 'spun-off']
 const FILE = 'interview.json'
@@ -82,6 +82,16 @@ const toThread = (value: unknown, index: number): Thread => {
   return thread
 }
 
+const toQueueItem = (value: unknown, index: number): QueueItem[] => {
+  const raw = record(value)
+  if (typeof raw.text !== 'string' || raw.text === '') return []
+  const item: QueueItem = { id: text(raw.id, `#${index + 1}`), text: raw.text }
+  if (typeof raw.thread === 'string') item.thread = raw.thread
+  if (raw.asked === true) item.asked = true
+
+  return [item]
+}
+
 const toCommits = (value: unknown): CommitPolicy | undefined => {
   const raw = record(value)
   if (raw.policy !== 'none' && raw.policy !== 'local' && raw.policy !== 'push') return undefined
@@ -141,6 +151,7 @@ export const parseInterview = (source: string): Interview | undefined => {
     session: Math.max(1, count(raw.session)),
     round: count(raw.round),
     threads: (Array.isArray(raw.threads) ? raw.threads : []).map(toThread),
+    queue: (Array.isArray(raw.queue) ? raw.queue : []).flatMap(toQueueItem),
     next: text(raw.next),
   }
   if (commits !== undefined) interview.commits = commits
@@ -176,6 +187,31 @@ export const countLedger = (ledger: string): LedgerCounts => {
   }
 
   return counts
+}
+
+const LIVE_DECISION = /^- \*\*(D\d+)\*\*\s*(?:\(([^)]*)\))?\s*(.*)$/
+const STRUCK_DECISION = /^- ~~\*\*(D\d+)\*\*\s*(?:\(([^)]*)\))?\s*(.*?)~~\s*(?:→\s*(.*))?$/
+
+/**
+ * The decision lines of ledger.md, newest first, each cut to its statement:
+ * the `*Why:*` and anything after it stay in the ledger.
+ */
+export const readDecisions = (ledger: string): Decision[] => {
+  const found: Decision[] = []
+  for (const line of ledger.split(/\r?\n/)) {
+    const struck = STRUCK_DECISION.exec(line)
+    const live = struck === null ? LIVE_DECISION.exec(line) : null
+    const match = struck ?? live
+    if (match === null) continue
+
+    const thread = (match[2] ?? '').split(',')[0]?.trim()
+    const decision: Decision = { id: match[1] ?? '', text: (match[3] ?? '').split(/\s*\*Why:\*/)[0]?.trim() ?? '' }
+    if (thread !== undefined && thread !== '') decision.thread = thread
+    if (struck !== null) decision.replacedBy = (struck[4] ?? '').replace(/^superseded by\s*/i, '').trim() || '?'
+    found.push(decision)
+  }
+
+  return found.reverse()
 }
 
 /** Threads that count toward progress: everything not parked or spun off. */

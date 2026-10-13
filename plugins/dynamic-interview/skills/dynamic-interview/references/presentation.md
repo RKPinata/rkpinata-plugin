@@ -4,10 +4,10 @@ Pick the lightest form that carries the state. Always pair a picture with one se
 
 ## Terminal: ASCII thread map
 
-Show it after Frame, at checkpoints and on resume. Use 10-cell bars: `open` = 0, `partial` = 5, `enough` = 10. Parked and spun-off threads show no bar.
+Show it after Frame and on resume, and at checkpoints where the live pane doesn't draw. Use 10-cell bars: `open` = 0, `partial` = 5, `enough` = 10. Parked and spun-off threads show no bar.
 
 ```text
-Billing retry redesign · plan · session 2, round 5
+Billing retry redesign · plan · session 2
 Goal: Decide how failed charges are retried after the queue migration
 Enough when: every phase has a testable exit criterion
 
@@ -18,18 +18,7 @@ Enough when: every phase has a testable exit criterion
   T4 Alerting          ‖ parked    after phase 1
 
 Progress 1/3 in scope · 7 decisions · 3 open · 2 to verify
-Next: Round 6, idempotency key scope (T2), 3 questions
-```
-
-## Question set framing
-
-```text
-Round 6 · T2 Idempotency
-Why now: phase 1's API shape depends on the key's scope.
-After this: I can draft the "Charge API" section of the plan.
-
-1. Is a retry the same charge or a new one?  Recommend: same charge, so one key per charge.
-2. ...
+Now: Q2 (T2) Is the idempotency key per charge or per invoice?
 ```
 
 ## Docs: Mermaid
@@ -53,6 +42,6 @@ When the map has more than about 10 threads, the dependencies cross, or the user
 
 ## Live pane (mod)
 
-In the terminal and the desktop app, the plugin's mod draws a one-line band above the prompt (slug, round, progress, next step) and an `/interview-map` pane from `interview.json`, refreshed whenever Claude writes it or the ledger. The user hides or shows both with `/interview-progress`, or the band's Hide button; respect that and don't re-open the pane after they hide it. `/interview-cleanup` opens a keyboard- and click-driven list of finished, idle or orphaned interviews. Its Open, Archive and Delete buttons put a request in the user's prompt, which you then carry out following `storage.md`.
+In the terminal and the desktop app, the plugin's mod draws a one-line band above the prompt (progress, the question at the head of `queue`, an Expand/Collapse button) and an `/interview-map` pane (threads, NOW, UP NEXT, SETTLED), refreshed whenever Claude writes `interview.json` or the ledger with `Write` or `Edit`. The user hides or shows both with `/interview-progress`, or the pane's Hide button; respect that and don't re-open the pane after they hide it. `/interview-cleanup` opens a keyboard- and click-driven list of finished, idle or orphaned interviews. Its Open, Archive and Delete buttons put a request in the user's prompt, which you then carry out following `storage.md`.
 
 The mod doesn't draw in VS Code, cloud sessions or `claude -p`, so the ASCII map at checkpoints remains the baseline.
