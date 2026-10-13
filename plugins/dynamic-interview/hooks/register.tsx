@@ -20,6 +20,7 @@ import {
   parseInterview,
   progress,
   ratioBar,
+  readDecisions,
   staleReasons,
   summary,
   threadBar,
@@ -35,6 +36,7 @@ const STALE_TOAST_AT = 3
 
 const current = atom({ plugin: 'dynamic-interview', key: 'current' } as const, null)
 const isHidden = atom({ plugin: 'dynamic-interview', key: 'isHidden' } as const, false)
+const isMapOpen = atom({ plugin: 'dynamic-interview', key: 'isMapOpen' } as const, false)
 const entries = atom({ plugin: 'dynamic-interview', key: 'entries' } as const, [])
 const tab = atom({ plugin: 'dynamic-interview', key: 'tab' } as const, 'stale')
 const selected = atom({ plugin: 'dynamic-interview', key: 'selected' } as const, null)
@@ -80,19 +82,39 @@ const load = async ($: EngineInterface, path: string): Promise<void> => {
   }
 
   const ledger = await readText($, `${folderOf(path)}/ledger.md`)
-  const loaded: Loaded = { path, interview, counts: ledger === undefined ? NO_COUNTS : countLedger(ledger) }
+  const loaded: Loaded = {
+    path,
+    interview,
+    counts: ledger === undefined ? NO_COUNTS : countLedger(ledger),
+    decisions: ledger === undefined ? [] : readDecisions(ledger),
+  }
   await update($, current, () => loaded)
   await $.store.set(await storeKey($), path)
 }
 
-const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Interview' })
 const isPaneOpen = async ($: EngineInterface, id: string) => (await $.ui.panes()).some(pane => pane.id === id)
+
+/** Keeps the band's Expand/Collapse label in step with the engine's record of open panes. */
+const syncMapOpen = async ($: EngineInterface) => {
+  const isOpen = await isPaneOpen($, PANE)
+  await update($, isMapOpen, () => isOpen)
+}
+
+const openPane = async ($: EngineInterface) => {
+  await $.ui.open({ id: PANE, title: 'Interview' })
+  await syncMapOpen($)
+}
+
+const closePane = async ($: EngineInterface) => {
+  await $.ui.close({ id: PANE })
+  await syncMapOpen($)
+}
 
 /** Hides or shows all progress (band and pane), remembered across sessions. */
 const setHidden = async ($: EngineInterface, hidden: boolean) => {
   await update($, isHidden, () => hidden)
   await $.store.set(HIDDEN_KEY, hidden)
-  if (hidden) await $.ui.close({ id: PANE })
+  if (hidden) await closePane($)
 }
 
 /**
@@ -268,6 +290,7 @@ export const register: Register = (on, options: PluginOptions) => {
       description: 'Review finished, idle or orphaned interviews: open, archive, keep or delete',
     })
     if ((await $.store.get(HIDDEN_KEY)) === true) await update($, isHidden, () => true)
+    await syncMapOpen($)
     const last = await $.store.get(await storeKey($))
     if (typeof last === 'string' && (await isInInterviews($, configured, last))) await load($, last)
 
@@ -296,7 +319,7 @@ export const register: Register = (on, options: PluginOptions) => {
       return { text: 'No interview yet. Start one with the dynamic-interview skill; the map appears once it writes interview.json.' }
     }
     if (await isPaneOpen($, PANE)) {
-      await $.ui.close({ id: PANE })
+      await closePane($)
 
       return { text: 'Interview map closed.' }
     }
@@ -314,7 +337,16 @@ export const register: Register = (on, options: PluginOptions) => {
     return { text: `Interview cleanup opened: ${stale} of ${all.length} interviews could be tidied.` }
   })
 
-  // The skill writes interview.json and ledger.md after every round; show what
+  // The person can close the map with its close mark or key; the band's
+  // button label follows.
+  on('ui.close', async ($, e, next) => {
+    const closed = await next(e)
+    if (e.id === PANE) await syncMapOpen($)
+
+    return closed
+  }).catch(($, e, next) => next(e))
+
+  // The skill writes interview.json and ledger.md at checkpoints; show what
   // the main loop writes inside the interviews folder. Reads (browsing
   // candidates), subagents' writes and same-named files elsewhere (a test
   // fixture) leave the display alone.
@@ -339,7 +371,7 @@ export const register: Register = (on, options: PluginOptions) => {
     return ran
   }).catch(($, e, next) => next(e))
 
-  // Saving every round must not cost a permission prompt: a write inside the
+  // Saving must not cost a permission prompt: a write inside the
   // interviews folder that would only be asked about by default is allowed.
   // Anything a rule, a hook or an organization ceiling decided stands, and
   // nothing is allowed when the folder is too broad (a root, home, ~/.claude).
@@ -368,32 +400,69 @@ export const register: Register = (on, options: PluginOptions) => {
     if (isQuiet) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
-    const { interview, counts, problem } = loaded
+    const { interview, problem } = loaded
     const { done, total } = progress(interview)
+    const now = interview.queue[0]
+    const isOpen = await read($, isMapOpen)
+
+    return (
+      <Box width={e.props.bodyColumns}>
+        <Box flexGrow={1}>
+          <Text wrap="truncate-end">
+            <Text bold>◆ </Text>
+            <Text color="green">{ratioBar(done, total, 6)}</Text>
+            <Text dimColor> {done}/{total} · </Text>
+            {now !== undefined ? (
+              <Text>
+                <Text bold>{now.id}</Text> {now.text}
+              </Text>
+            ) : (
+              <Text dimColor>{interview.next || interview.title}</Text>
+            )}
+            {problem !== undefined && <Text color="yellow"> · file unreadable</Text>}
+          </Text>
+        </Box>
+        <Text> </Text>
+        <Button
+          key="toggle"
+          label={isOpen ? 'Collapse' : 'Expand'}
+          plain
+          onPress={async () => {
+            if (await isPaneOpen($, PANE)) await closePane($)
+            else await openPane($)
+          }}
+        />
+      </Box>
+    )
+  })
+
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const loaded = await read($, current)
+
+    if (loaded === null) {
+      return <Text dimColor>No interview yet. The map appears once the skill writes interview.json.</Text>
+    }
+
+    const { interview, path, counts, decisions, problem } = loaded
+    const { done, total } = progress(interview)
+    const promotion = describePromotion(interview.promoted)
+    const nameWidth = Math.min(
+      28,
+      Math.max(8, ...interview.threads.map(t => t.id.length + 1 + t.name.length)),
+    )
+    const [now, ...upNext] = interview.queue
+    const heading = (label: string) => <Text bold dimColor>{label}</Text>
+    const tag = (thread: string | undefined) => (thread === undefined ? '' : ` (${thread})`)
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
         <Box>
-          <Text wrap="truncate-end">
-            <Text bold>◆ {interview.slug}</Text>
-            <Text dimColor>
-              {' '}· {interview.mode} · s{interview.session} r{interview.round} ·{' '}
+          <Box flexGrow={1}>
+            <Text bold wrap="truncate-end">
+              ◆ {interview.title}
             </Text>
-            <Text color="green">{ratioBar(done, total, 8)}</Text>
-            <Text dimColor> {summary(interview, counts)}</Text>
-            {problem !== undefined && <Text color="yellow"> · file unreadable</Text>}
-          </Text>
-        </Box>
-        <Box>
-          {interview.next !== '' && (
-            <Box flexGrow={1}>
-              <Text dimColor wrap="truncate-end">
-                Next: {interview.next}
-              </Text>
-            </Box>
-          )}
-          <Button key="map" label="Map" plain onPress={() => openPane($)} />
-          <Text> </Text>
+          </Box>
           <Button
             key="hide"
             label="Hide"
@@ -404,33 +473,8 @@ export const register: Register = (on, options: PluginOptions) => {
             }}
           />
         </Box>
-      </Box>
-    )
-  })
-
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
-    const loaded = await read($, current)
-
-    if (loaded === null) {
-      return <Text dimColor>No interview yet. The map appears once the skill writes interview.json.</Text>
-    }
-
-    const { interview, path, counts, problem } = loaded
-    const { done, total } = progress(interview)
-    const promotion = describePromotion(interview.promoted)
-    const nameWidth = Math.min(
-      28,
-      Math.max(8, ...interview.threads.map(t => t.id.length + 1 + t.name.length)),
-    )
-
-    return (
-      <Box flexDirection="column" width={e.props.bodyColumns}>
-        <Text bold wrap="truncate-end">
-          {interview.title}
-        </Text>
         <Text dimColor wrap="truncate-end">
-          {interview.mode} · session {interview.session}, round {interview.round} · {interview.status}
+          {interview.mode} · session {interview.session} · {interview.status}
         </Text>
         {problem !== undefined && <Text color="yellow">{problem}</Text>}
         <Text> </Text>
@@ -440,6 +484,11 @@ export const register: Register = (on, options: PluginOptions) => {
         <Text dimColor>Saving: {describeCommits(interview.commits)}</Text>
         {promotion !== undefined && <Text dimColor>Promoted: {promotion}</Text>}
         <Text> </Text>
+        <Text>
+          <Text color="green">{ratioBar(done, total)}</Text> {summary(interview, counts)}
+        </Text>
+        <Text> </Text>
+        {heading('THREADS')}
         {interview.threads.length === 0 && <Text dimColor>No threads mapped yet.</Text>}
         {interview.threads.map(thread => (
           <Box key={`thread:${thread.id}`}>
@@ -459,10 +508,40 @@ export const register: Register = (on, options: PluginOptions) => {
           </Box>
         ))}
         <Text> </Text>
-        <Text>
-          <Text color="green">{ratioBar(done, total)}</Text> {summary(interview, counts)}
-        </Text>
-        {interview.next !== '' && <Text>Next: {interview.next}</Text>}
+        {heading('NOW')}
+        {now !== undefined ? (
+          <Text>
+            ▶ <Text bold>{now.id}</Text>
+            <Text dimColor>{tag(now.thread)}</Text> {now.text}
+          </Text>
+        ) : (
+          <Text dimColor>{interview.next !== '' ? `Next: ${interview.next}` : 'Nothing asked right now.'}</Text>
+        )}
+        <Text> </Text>
+        {heading('UP NEXT')}
+        {upNext.length === 0 && <Text dimColor>Nothing planned.</Text>}
+        {upNext.map(item => (
+          <Text key={`queue:${item.id}`} wrap="truncate-end">
+            · {item.id}
+            <Text dimColor>{tag(item.thread)}</Text> {item.text}
+            {item.asked === true && <Text dimColor>  asked, waiting</Text>}
+          </Text>
+        ))}
+        <Text> </Text>
+        {heading('SETTLED')}
+        {decisions.length === 0 && <Text dimColor>No decisions yet.</Text>}
+        {decisions.map(decision =>
+          decision.replacedBy !== undefined ? (
+            <Text key={`decision:${decision.id}`} dimColor wrap="truncate-end">
+              ✕ {decision.id} superseded by {decision.replacedBy}
+            </Text>
+          ) : (
+            <Text key={`decision:${decision.id}`} wrap="truncate-end">
+              {decision.id}
+              <Text dimColor>{tag(decision.thread)}</Text> {decision.text}
+            </Text>
+          ),
+        )}
         <Text> </Text>
         <Text dimColor wrap="truncate-start">
           {path}

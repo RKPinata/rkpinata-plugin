@@ -10,6 +10,7 @@ import {
   isTooBroad,
   parseInterview,
   progress,
+  readDecisions,
   staleReasons,
 } from '../hooks/interview'
 
@@ -41,13 +42,17 @@ const INTERVIEW = {
     { id: 'T4', name: 'Alerting', status: 'parked' },
     { id: 'T5', name: 'Rollout', status: 'open' },
   ],
+  queue: [
+    { id: 'Q2', thread: 'T2', text: 'Key per charge or per invoice?', asked: true },
+    { id: 'Q3', thread: 'T5', text: 'Who flips the flag?' },
+  ],
   next: 'Round 6: idempotency key scope',
 }
 
 const LEDGER = `# Interview: Billing retry redesign
 
 ## Decisions
-- **D1** (T1, s1r2) Exponential backoff.
+- **D1** (T1, s1r2) Exponential backoff. *Why:* card network guidance.
 - ~~**D2** (T1, s1r2) Max 3 attempts.~~ → superseded by D6
 - **D6** (T1, s2r4) Max 5 attempts.
 
@@ -238,6 +243,19 @@ describe('interview.json and ledger.md', () => {
     expect(countLedger('')).toEqual({ decisions: 0, open: 0, toVerify: 0 })
   })
 
+  test('reads decisions newest first, cut before Why, struck ones with their replacement', () => {
+    expect(readDecisions(LEDGER)).toEqual([
+      { id: 'D6', thread: 'T1', text: 'Max 5 attempts.' },
+      { id: 'D2', thread: 'T1', text: 'Max 3 attempts.', replacedBy: 'D6' },
+      { id: 'D1', thread: 'T1', text: 'Exponential backoff.' },
+    ])
+  })
+
+  test('drops queue items with no text', () => {
+    const parsed = parseInterview(JSON.stringify({ goal: 'g', queue: [{ id: 'Q1', text: 'Why?' }, { id: 'Q2' }, 'x'] }))
+    expect(parsed?.queue).toEqual([{ id: 'Q1', text: 'Why?' }])
+  })
+
   test('stale: finished after 7 days, idle after 90, missing project, snoozed never', () => {
     const base = parseInterview(json(INTERVIEW))!
     const done = { ...base, status: 'done' as const }
@@ -256,7 +274,7 @@ describe('progress display', () => {
     session(on, {})
     await $.session.start(START)
     const ui = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    expect(await ui.find({ key: 'map' })).toBeUndefined()
+    expect(await ui.find({ key: 'toggle' })).toBeUndefined()
   })
 
   test('writing interview.json shows the band and the pane, counts from the ledger', async ($, on) => {
@@ -266,12 +284,12 @@ describe('progress display', () => {
 
     for (const surface of ['terminal', 'desktop'] as const) {
       const band = await $.ui.mount({ plugin: 'dynamic-interview', surface, ...BAND })
-      expect(await band.find({ text: /billing-retries/ })).toBeDefined()
-      expect(await band.find({ text: /1\/3 threads · 2 decisions · 2 open · 2 to verify/ })).toBeDefined()
-      expect(await band.find({ text: /Next: Round 6/ })).toBeDefined()
+      expect(await band.find({ text: /1\/3 · Q2 Key per charge or per invoice\?/ })).toBeDefined()
+      expect(await band.find({ text: /Next: Round 6/ })).toBeUndefined()
       await band.unmount()
 
       const pane = await $.ui.mount({ plugin: 'dynamic-interview', surface, ...MAP })
+      expect(await pane.find({ text: /1\/3 threads · 2 decisions · 2 open · 2 to verify/ })).toBeDefined()
       expect(await pane.find({ text: /Idempotency/ })).toBeDefined()
       expect(await pane.find({ text: /key scope unclear/ })).toBeDefined()
       expect(await pane.find({ text: /decided when the outcome is promoted/ })).toBeDefined()
@@ -283,7 +301,7 @@ describe('progress display', () => {
     const { files } = session(on, { [PATH]: { text: json(INTERVIEW) }, [`${DIR}/ledger.md`]: { text: '' } })
     await $.session.start(START)
     await $.tool.call({ tool: 'Edit', file_path: PATH, old_string: 'a', new_string: 'a' })
-    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...MAP })
     expect(await band.find({ text: /0 decisions/ })).toBeDefined()
 
     files[`${DIR}/ledger.md`] = { text: LEDGER }
@@ -299,7 +317,7 @@ describe('progress display', () => {
     await $.tool.call({ tool: 'Edit', file_path: PATH, old_string: 'a', new_string: 'b' })
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    expect(await band.find({ text: /billing-retries/ })).toBeDefined()
+    expect(await band.find({ text: /Q2 Key per charge/ })).toBeDefined()
     expect(await band.find({ text: /file unreadable/ })).toBeDefined()
   })
 
@@ -310,7 +328,7 @@ describe('progress display', () => {
     await $.tool.call({ tool: 'Write', file_path: PATH, content: '', agentId: 'agent-1' } as never)
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    expect(await band.find({ key: 'map' })).toBeUndefined()
+    expect(await band.find({ key: 'toggle' })).toBeUndefined()
   })
 
   test('other files and failed writes are ignored', async ($, on) => {
@@ -321,7 +339,7 @@ describe('progress display', () => {
     await $.tool.call({ tool: 'Write', file_path: broken, content: json(INTERVIEW) })
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    expect(await band.find({ key: 'map' })).toBeUndefined()
+    expect(await band.find({ key: 'toggle' })).toBeUndefined()
   })
 
   test('a new session restores the last interview of the project', async ($, on) => {
@@ -329,7 +347,7 @@ describe('progress display', () => {
     await $.session.start(START)
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    expect(await band.find({ text: /billing-retries/ })).toBeDefined()
+    expect(await band.find({ text: /Q2 Key per charge/ })).toBeDefined()
   })
 
   test('a done interview leaves the band', async ($, on) => {
@@ -339,7 +357,31 @@ describe('progress display', () => {
     await $.tool.call({ tool: 'Write', file_path: PATH, content: done })
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    expect(await band.find({ key: 'map' })).toBeUndefined()
+    expect(await band.find({ key: 'toggle' })).toBeUndefined()
+  })
+  test('the pane shows the question now, the queue, and the settled decisions newest first', async ($, on) => {
+    session(on, { [PATH]: { text: json(INTERVIEW) }, [`${DIR}/ledger.md`]: { text: LEDGER } })
+    await $.session.start(START)
+    await $.tool.call({ tool: 'Write', file_path: PATH, content: json(INTERVIEW) })
+
+    const pane = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...MAP })
+    expect(await pane.find({ text: /▶ Q2 \(T2\) Key per charge or per invoice\?/ })).toBeDefined()
+    expect(await pane.find({ text: /· Q3 \(T5\) Who flips the flag\?/ })).toBeDefined()
+    expect(await pane.find({ text: /D1 \(T1\) Exponential backoff\.$/ })).toBeDefined()
+    expect(await pane.find({ text: /✕ D2 superseded by D6/ })).toBeDefined()
+  })
+
+  test('with no queue the band and the pane fall back to next', async ($, on) => {
+    const bare = json({ ...INTERVIEW, queue: undefined })
+    session(on, { [PATH]: { text: bare } })
+    await $.session.start(START)
+    await $.tool.call({ tool: 'Write', file_path: PATH, content: bare })
+
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+    expect(await band.find({ text: /Round 6: idempotency key scope/ })).toBeDefined()
+    const pane = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...MAP })
+    expect(await pane.find({ text: /Nothing planned\./ })).toBeDefined()
+    expect(await pane.find({ text: /No decisions yet\./ })).toBeDefined()
   })
 })
 
@@ -351,17 +393,17 @@ describe('show and hide', () => {
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
 
     await $.command.run({ command: 'interview-progress', args: '' } as never)
-    expect(await band.find({ key: 'map' })).toBeUndefined()
+    expect(await band.find({ key: 'toggle' })).toBeUndefined()
     await $.command.run({ command: 'interview-progress', args: '' } as never)
-    expect(await band.find({ key: 'map' })).toBeDefined()
+    expect(await band.find({ key: 'toggle' })).toBeDefined()
     const bad = await $.command.run({ command: 'interview-progress', args: 'maybe' } as never)
     expect(bad).toEqual(expect.objectContaining({ text: expect.stringContaining('Usage') }))
-    expect(await band.find({ key: 'map' })).toBeDefined()
+    expect(await band.find({ key: 'toggle' })).toBeDefined()
     await $.command.run({ command: 'interview-progress', args: 'hide' } as never)
     await $.command.run({ command: 'interview-progress', args: 'hide' } as never)
-    expect(await band.find({ key: 'map' })).toBeUndefined()
+    expect(await band.find({ key: 'toggle' })).toBeUndefined()
     await $.command.run({ command: 'interview-progress', args: 'show' } as never)
-    expect(await band.find({ key: 'map' })).toBeDefined()
+    expect(await band.find({ key: 'toggle' })).toBeDefined()
   })
 
   test('hiding closes the map pane, and /interview-map toggles it', async ($, on) => {
@@ -384,7 +426,22 @@ describe('show and hide', () => {
     await $.session.start(START)
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    expect(await band.find({ key: 'map' })).toBeUndefined()
+    expect(await band.find({ key: 'toggle' })).toBeUndefined()
+  })
+
+  test('one band button expands and collapses the pane', async ($, on) => {
+    const { panes } = session(on, { [PATH]: { text: json(INTERVIEW) } })
+    await $.session.start(START)
+    await $.tool.call({ tool: 'Write', file_path: PATH, content: json(INTERVIEW) })
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+
+    expect(await band.find({ text: /Expand/ })).toBeDefined()
+    await band.press({ key: 'toggle' })
+    expect(panes.has('interview-map')).toBe(true)
+    expect(await band.find({ text: /Collapse/ })).toBeDefined()
+    await band.press({ key: 'toggle' })
+    expect(panes.has('interview-map')).toBe(false)
+    expect(await band.find({ text: /Expand/ })).toBeDefined()
   })
 
   test('Hide removes the band until the map command', async ($, on) => {
@@ -393,12 +450,13 @@ describe('show and hide', () => {
     await $.tool.call({ tool: 'Write', file_path: PATH, content: json(INTERVIEW) })
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    await band.press({ key: 'hide' })
-    expect(await band.find({ key: 'map' })).toBeUndefined()
+    const pane = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...MAP })
+    await pane.press({ key: 'hide' })
+    expect(await band.find({ key: 'toggle' })).toBeUndefined()
 
     const ran = await $.command.run({ command: 'interview-map', args: '' } as never)
     expect(ran).toEqual(expect.objectContaining({ text: expect.stringContaining('Billing retry redesign') }))
-    expect(await band.find({ key: 'map' })).toBeDefined()
+    expect(await band.find({ key: 'toggle' })).toBeDefined()
   })
 })
 
@@ -581,7 +639,7 @@ describe('review fixes', () => {
     await $.tool.call({ tool: 'Write', file_path: fixture, content: json({ goal: 'fixture' }) })
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    expect(await band.find({ key: 'map' })).toBeUndefined()
+    expect(await band.find({ key: 'toggle' })).toBeUndefined()
   })
 
   test('a remembered path outside the interviews folder is not restored', async ($, on) => {
@@ -590,7 +648,7 @@ describe('review fixes', () => {
     await $.session.start(START)
 
     const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
-    expect(await band.find({ key: 'map' })).toBeUndefined()
+    expect(await band.find({ key: 'toggle' })).toBeUndefined()
   })
 
   test('no action is armed until an interview is picked, and Keep or a tab switch disarms it', async ($, on) => {
@@ -635,7 +693,7 @@ describe('review fixes', () => {
     expect(verdict.decision).toBe('allow')
 
     await $.tool.call({ tool: 'Write', file_path: `${winDir}\\interview.json`, content: '' } as never)
-    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...BAND })
+    const band = await $.ui.mount({ plugin: 'dynamic-interview', surface: 'terminal', ...MAP })
     expect(await band.find({ text: /0 decisions/ })).toBeDefined()
 
     files[`${dir}/ledger.md`] = { text: LEDGER }

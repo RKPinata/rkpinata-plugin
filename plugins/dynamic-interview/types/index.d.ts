@@ -17,6 +17,14 @@ export type Promotion = {
   ref?: string
 }
 
+/** A question waiting to be asked, or asked and not yet answered (`asked`). */
+export type QueueItem = {
+  id: string
+  thread?: string
+  text: string
+  asked?: boolean
+}
+
 export type Interview = {
   slug: string
   title: string
@@ -34,16 +42,28 @@ export type Interview = {
   session: number
   round: number
   threads: Thread[]
+  /** Questions in the order they will be asked; the first is the one on screen now. */
+  queue: QueueItem[]
   next: string
 }
 
 /** Counted from ledger.md, so they never drift from it. */
 export type LedgerCounts = { decisions: number; open: number; toVerify: number }
 
+/** A decision line from ledger.md; `replacedBy` is set on a struck one. */
+export type Decision = {
+  id: string
+  thread?: string
+  text: string
+  replacedBy?: string
+}
+
 export type Loaded = {
   path: string
   interview: Interview
   counts: LedgerCounts
+  /** Newest first. */
+  decisions: Decision[]
   /** Set when the file on disk no longer parses; the interview shown is the last good one. */
   problem?: string
 }
@@ -67,6 +87,7 @@ declare module 'claude-code' {
     'dynamic-interview': {
       current: Loaded | null
       isHidden: boolean
+      isMapOpen: boolean
       entries: Entry[]
       tab: CleanupTab
       selected: string | null
